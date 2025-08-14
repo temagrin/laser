@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <!-- Фон круга -->
+  <circle cx="32" cy="32" r="30" fill="#2A9D8F" stroke="#264653" stroke-width="3" />
+
+  <!-- Лазерный луч (треугольник) -->
+  <polygon points="20,48 44,32 20,16" fill="#E9C46A" />
+
+  <!-- PCB (печатная плата) линии -->
+  <rect x="46" y="22" width="6" height="20" fill="#264653" />
+  <line x1="48" y1="24" x2="52" y2="24" stroke="#E9C46A" stroke-width="1.5"/>
+  <line x1="48" y1="28" x2="52" y2="28" stroke="#E9C46A" stroke-width="1.5"/>
+  <line x1="48" y1="32" x2="52" y2="32" stroke="#E9C46A" stroke-width="1.5"/>
+  <line x1="48" y1="36" x2="52" y2="36" stroke="#E9C46A" stroke-width="1.5"/>
+  <line x1="48" y1="40" x2="52" y2="40" stroke="#E9C46A" stroke-width="1.5"/>
+</svg>
