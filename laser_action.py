@@ -95,7 +95,6 @@ def get_edge_cuts_points(board):
             elif shape == pcbnew.S_POLYGON:
                 # Полилиния или многоугольник
                 poly_set = d.GetPolyShape()
-                # Получаем координаты полигонов с помощью функции из твоего плагина
                 for i in range(poly_set.OutlineCount()):
                     outline = poly_set.Outline(i)
                     for v in range(outline.GetPointCount()):

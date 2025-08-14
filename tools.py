@@ -178,14 +178,53 @@ def plot_inset_paths(inset_levels):
     plt.show()
 
 
+def sort_paths_nearest(contours):
+    if not contours:
+        return []
+    remaining = contours[:]
+    sorted_contours = []
+    current = remaining.pop(0)
+    sorted_contours.append(current)
+    current_end = current[-1]
+
+    while remaining:
+        min_dist = float("inf")
+        min_idx = 0
+        reverse_needed = False
+
+        for i, contour in enumerate(remaining):
+            start_pt = contour[0]
+            end_pt = contour[-1]
+            dist_start = math.hypot(start_pt[0] - current_end[0],
+                                    start_pt[1] - current_end[1])
+            dist_end = math.hypot(end_pt[0] - current_end[0],
+                                  end_pt[1] - current_end[1])
+            if dist_start < min_dist:
+                min_dist = dist_start
+                min_idx = i
+                reverse_needed = False
+            if dist_end < min_dist:
+                min_dist = dist_end
+                min_idx = i
+                reverse_needed = True
+
+        next_contour = remaining.pop(min_idx)
+        if reverse_needed:
+            next_contour.reverse()
+        sorted_contours.append(next_contour)
+        current_end = sorted_contours[-1][-1]
+
+    return sorted_contours
+
+
 def generate_gcode_from_paths(
-    inset_levels,
-    base_speed=1000,
-    speed_increment=200,
-    base_power=1000,
-    power_decrement=100,
-    round_um=2,
-    outer_speed_boost=0.5
+        inset_levels,
+        base_speed=1000,
+        speed_increment=200,
+        base_power=1000,
+        power_decrement=100,
+        round_um=2,
+        outer_speed_boost=0.5
 ):
     """
     Генерирует G-code для лазерной заливки с:
@@ -204,45 +243,6 @@ def generate_gcode_from_paths(
     """
     nm_to_mm = 1e-6
     scale = 1e-3 * round_um
-
-    # --- внутренняя функция сортировки ---
-    def sort_paths_nearest(contours):
-        if not contours:
-            return []
-        remaining = contours[:]
-        sorted_contours = []
-        current = remaining.pop(0)
-        sorted_contours.append(current)
-        current_end = current[-1]
-
-        while remaining:
-            min_dist = float("inf")
-            min_idx = 0
-            reverse_needed = False
-
-            for i, contour in enumerate(remaining):
-                start_pt = contour[0]
-                end_pt = contour[-1]
-                dist_start = math.hypot(start_pt[0] - current_end[0],
-                                        start_pt[1] - current_end[1])
-                dist_end = math.hypot(end_pt[0] - current_end[0],
-                                      end_pt[1] - current_end[1])
-                if dist_start < min_dist:
-                    min_dist = dist_start
-                    min_idx = i
-                    reverse_needed = False
-                if dist_end < min_dist:
-                    min_dist = dist_end
-                    min_idx = i
-                    reverse_needed = True
-
-            next_contour = remaining.pop(min_idx)
-            if reverse_needed:
-                next_contour.reverse()
-            sorted_contours.append(next_contour)
-            current_end = sorted_contours[-1][-1]
-
-        return sorted_contours
 
     # --- начало формирования G-кода ---
     gcode = [
@@ -290,6 +290,8 @@ def generate_gcode_from_paths(
     gcode.append("G0 X0 Y0 ; home")
 
     return gcode
+
+
 def save_gcode_to_file(gcode_lines, filename):
     """
     Сохраняет список строк G-code в указанный файл.
