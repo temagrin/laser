@@ -6,8 +6,7 @@ MAX_ERROR = 10000
 
 
 class PCB:
-    def __init__(self, layout, config):
-        self.copper_layer = layout
+    def __init__(self, config):
         self.config = config
 
     @staticmethod
@@ -183,12 +182,12 @@ class PCB:
         poly_sets = []
         hole_sets = []
         clearance = 0
-
+        copper_layer = self.config.copper_layer
         # Сбор медных объектов
         for fp in board.GetFootprints():
             for pad in fp.Pads():
-                if pad.GetLayer() == self.copper_layer:
-                    poly_set = self.pad_to_poly_set(pad, self.copper_layer)
+                if pad.GetLayer() == copper_layer:
+                    poly_set = self.pad_to_poly_set(pad, copper_layer)
                     if poly_set and not poly_set.IsEmpty():
                         poly_sets.append(poly_set)
 
@@ -203,7 +202,7 @@ class PCB:
             cls = track.GetClass()
             if cls == "PCB_VIA":
                 poly_set = pcbnew.SHAPE_POLY_SET()
-                track.TransformShapeToPolygon(poly_set, self.copper_layer, clearance, MAX_ERROR, ERROR_INSIDE)
+                track.TransformShapeToPolygon(poly_set, copper_layer, clearance, MAX_ERROR, ERROR_INSIDE)
                 if poly_set and not poly_set.IsEmpty():
                     poly_sets.append(poly_set)
                 drill_x = track.GetDrill()
@@ -214,13 +213,13 @@ class PCB:
                     hole_sets.append(hole_poly)
 
             elif cls == "PCB_TRACK":
-                if track.GetLayer() == self.copper_layer:
-                    poly_set = self.track_to_poly_set(track, self.copper_layer)
+                if track.GetLayer() == copper_layer:
+                    poly_set = self.track_to_poly_set(track, copper_layer)
                     if poly_set and not poly_set.IsEmpty():
                         poly_sets.append(poly_set)
 
         for zone in board.Zones():
-            if zone.GetLayer() == self.copper_layer:
+            if zone.GetLayer() == copper_layer:
                 poly_set = self.zone_to_poly_set(zone)
                 if poly_set and not poly_set.IsEmpty():
                     poly_sets.append(poly_set)

@@ -204,4 +204,3 @@ def convert_shape_to_shapely(shape):
             return MultiPolygon([Polygon(poly) for poly in coords])
     else:
         return None
-

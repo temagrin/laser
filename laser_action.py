@@ -2,54 +2,140 @@ import os
 import pcbnew
 import wx
 
-from geometry import PCB
-from machine import Machine
-from settings import Config
-from tools import *
+from core.geometry import PCB
+from core.machine import Machine
+from core.settings import PluginConfig
+from core.tools import plot_inset_paths, generate_inset_paths, mirror_geometry, offset_geometry, render_preview, \
+    convert_shape_to_shapely
+
+
+class LaserSettingsDialog(wx.Dialog):
+    def __init__(self, config, title):
+        super().__init__(None, title=title)
+
+        panel = wx.Panel(self)
+
+        vbox = wx.BoxSizer(wx.VERTICAL)
+
+        hbox_dir = wx.BoxSizer(wx.HORIZONTAL)
+        self.dir_ctrl = wx.TextCtrl(panel)
+        dir_btn = wx.Button(panel, label="...")
+        dir_btn.Bind(wx.EVT_BUTTON, self.on_choose_dir)
+        hbox_dir.Add(wx.StaticText(panel, label="Рабочая директория:"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
+        hbox_dir.Add(self.dir_ctrl, proportion=1, flag=wx.EXPAND)
+        hbox_dir.Add(dir_btn, flag=wx.LEFT, border=8)
+        vbox.Add(hbox_dir, flag=wx.EXPAND | wx.ALL, border=10)
+
+        hbox_num = wx.BoxSizer(wx.HORIZONTAL)
+        self.step_ctrl = wx.TextCtrl(panel)
+        hbox_num.Add(wx.StaticText(panel, label="Шаг лазера (мкм):"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
+        hbox_num.Add(self.step_ctrl, proportion=1, flag=wx.EXPAND)
+        vbox.Add(hbox_num, flag=wx.EXPAND | wx.ALL, border=10)
+
+        hbox_layer = wx.BoxSizer(wx.HORIZONTAL)
+        self.layer_choice = wx.Choice(panel, choices=["F.Cu", "B.Cu"])
+        self.layer_choice.SetMaxSize(wx.Size(250, -1))
+        hbox_layer.Add(wx.StaticText(panel, label="Слой меди:"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
+        hbox_layer.Add(self.layer_choice, proportion=0, flag=wx.ALL, border=5)
+        vbox.Add(hbox_layer, flag=wx.EXPAND | wx.ALL, border=10)
+
+        hbox_btns = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(panel, wx.ID_OK, label="Сгенерировать")
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL, label="Отмена")
+        hbox_btns.Add(ok_btn, flag=wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=5)
+        hbox_btns.Add(cancel_btn, flag=wx.LEFT | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=5)
+        vbox.Add(hbox_btns, flag=wx.ALIGN_CENTER | wx.TOP | wx.BOTTOM, border=20)
+
+        panel.SetSizer(vbox)
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(panel, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(main_sizer)
+        self.SetMinSize((500, 280))
+        self.Layout()
+        self.Fit()
+
+        # Установка значений из конфига
+        self.dir_ctrl.SetValue(config.user_dir)
+        self.step_ctrl.SetValue(str(config.laser_beam_wide))
+        if config.copper_layer == pcbnew.F_Cu:
+            self.layer_choice.SetStringSelection("F.Cu")
+        else:
+            self.layer_choice.SetStringSelection("B.Cu")
+
+    def on_choose_dir(self, event):
+        dialog = wx.DirDialog(self, "Выберите рабочую директорию")
+        if dialog.ShowModal() == wx.ID_OK:
+            self.dir_ctrl.SetValue(dialog.GetPath())
+        dialog.Destroy()
+
+    def get_parameters(self):
+        return {
+            "work_dir": self.dir_ctrl.GetValue(),
+            "step": self.step_ctrl.GetValue(),
+            "layer": self.layer_choice.GetStringSelection(),
+        }
+
+
+def show_msq(title, message):
+        dlg = wx.MessageDialog(None, message, title, wx.OK | wx.ICON_INFORMATION)
+        dlg.ShowModal()
+        dlg.Destroy()
 
 
 class Laser(pcbnew.ActionPlugin):
-    def __init__(self):
-        super().__init__()
+
+    def defaults(self):
         self.description = "Объединение медных объектов слоя и отображение на User_1"
         self.category = "Hardware"
         self.name = "Laser processing"
         self.title = "Laser processing"
-        self.plugin_path = os.path.dirname(__file__)
-
-    def defaults(self):
         self.show_toolbar_button = True
+        self.plugin_path = os.path.dirname(__file__)
         self.icon_file_name = os.path.join(self.plugin_path, "icons/icon.svg")
 
-    def show_msq(self, message):
-        dlg = wx.MessageDialog(None, message, self.title, wx.OK | wx.ICON_INFORMATION)
-        dlg.ShowModal()
+    def Run(self):
+        config = PluginConfig(plugin_path=self.plugin_path)
+        config.load_config()
+
+        # Диалог настройки
+        dlg = LaserSettingsDialog(config, self.title)
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return  # пользователь отменил
+        params = dlg.get_parameters()
         dlg.Destroy()
 
-    def Run(self):
-        config = Config(plugin_path=self.plugin_path)
-        config.load()
+        config.user_dir = params.get("work_dir", config.user_dir)
+        config.laser_beam_wide = float(params.get("step", config.laser_beam_wide))
+        layer = params.get("layer", None)
+        if layer == "F.Cu":
+            config.copper_layer = pcbnew.F_Cu
+        elif layer == "B.Cu":
+            config.copper_layer = pcbnew.B_Cu
+
+        config.save_config()
 
         board = pcbnew.GetBoard()
         if not board:
-            self.show_msq("Ошибка: нет открытой платы")
+            show_msq(self.title, "Ошибка: нет открытой платы")
             return
 
-        pcb = PCB(layout=pcbnew.F_Cu, config=config)
+        pcb = PCB(config=config)
         origin_x, origin_y = pcb.get_board_origin_from_edges(board)
         if origin_x == 0 or origin_y == 0:
-            self.show_msq("Не задана область обрезки платы")
+            show_msq(self.title, "Не задана область обрезки платы")
             return
 
         poly_sets, hole_sets = pcb.get_cu_geometry(board)
 
         if not poly_sets:
-            self.show_msq("На выбранном слое нет медных объектов")
+            show_msq(self.title, "На выбранном слое нет медных объектов")
             return
 
         union_poly_set = pcb.union_poly_sets(poly_sets)
         if union_poly_set is None or union_poly_set.IsEmpty():
-            self.show_msq("Ошибка при объединении полигонов")
+            show_msq(self.title, "Ошибка при объединении полигонов")
             return
         cu_multy = convert_shape_to_shapely(union_poly_set)
 
