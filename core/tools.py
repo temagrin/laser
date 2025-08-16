@@ -69,7 +69,7 @@ def render_preview(multipolygon):
         ax.add_patch(MplPolygon(exterior_coords, closed=True,
                                 facecolor='lightgray', edgecolor='black'))
 
-        # ===== отверстия (интерьеры) =====
+        # ===== отверстия =====
         for interior in poly.interiors:
             interior_coords = list(interior.coords)
             ax.add_patch(MplPolygon(interior_coords, closed=True,
@@ -87,7 +87,9 @@ def render_preview(multipolygon):
 
 
 def generate_inset_paths_for_polygon(polygon: Polygon, step: float):
-    inset_levels = []
+    external_paths = []
+    internal_paths = []
+
     i = 1
     current_geom = polygon
 
@@ -98,12 +100,9 @@ def generate_inset_paths_for_polygon(polygon: Polygon, step: float):
         if offset_geom.is_empty:
             break
 
-        # Пробуем объединить части offset-геометрии, чтобы удержать их как одно целое
         if isinstance(offset_geom, MultiPolygon):
             offset_geom = unary_union(offset_geom)
 
-        contours = []
-        # В любом случае offset_geom может быть MultiPolygon или Polygon
         if isinstance(offset_geom, Polygon):
             polys = [offset_geom]
         elif isinstance(offset_geom, MultiPolygon):
@@ -112,14 +111,15 @@ def generate_inset_paths_for_polygon(polygon: Polygon, step: float):
             polys = []
 
         for poly in polys:
-            contours.append(list(poly.exterior.coords))
+            external_paths.append(list(poly.exterior.coords))
+
             for interior in poly.interiors:
-                contours.append(list(interior.coords))
+                internal_paths.append(list(interior.coords))
 
-        inset_levels.append(contours)
         i += 1
-
-    return inset_levels
+    internal_paths.reverse()
+    combined_paths = external_paths + internal_paths
+    return combined_paths
 
 
 def generate_inset_paths_separated_with_centroid(multipolygon: MultiPolygon, step: float):
@@ -144,14 +144,14 @@ def generate_inset_paths_separated_with_centroid(multipolygon: MultiPolygon, ste
     return result
 
 
-def sort_by_centroid_distance(data):
-    if not data:
+def sort_by_centroid_distance(data_input):
+    if not data_input:
         return []
 
     def distance(p1, p2):
         return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
-    data = data[:]  # копия
+    data = data_input[:]  # копия
     sorted_data = [data.pop(0)]
     last_centroid = sorted_data[0][0]
 
@@ -178,29 +178,25 @@ def unpack_sorted_data(sorted_data):
 
 
 def plot_inset_paths(paths):
-
     fig, ax = plt.subplots()
     ax.set_aspect('equal', adjustable='box')
     all_x, all_y = [], []
-    max_levels = max([len(inset_levels) for inset_levels in paths])
 
-    colors = cm.get_cmap('viridis', max_levels)
-    for inset_levels in paths:
-        for level_idx, contours in enumerate(inset_levels):
+    for figure in paths:
+        colors = cm.get_cmap('viridis', len(figure))
+        for level_idx, contour in enumerate(figure):
             color = colors(level_idx)  # Цвет для этого уровня
-            for contour in contours:
-                if len(contour) < 3:
-                    continue  # пропускаем вырожденные
-                poly_patch = MplPolygon(contour, closed=True,
-                                        facecolor='none',
-                                        edgecolor=color,
-                                        linewidth=1)
-                ax.add_patch(poly_patch)
+            if len(contour) < 3:
+                continue  # пропускаем вырожденные
+            poly_patch = MplPolygon(contour, closed=True,
+                                    facecolor='none',
+                                    edgecolor=color,
+                                    linewidth=1)
+            ax.add_patch(poly_patch)
 
-                # Сохраняем координаты для автолимитов
-                xs, ys = zip(*contour)
-                all_x.extend(xs)
-                all_y.extend(ys)
+            xs, ys = zip(*contour)
+            all_x.extend(xs)
+            all_y.extend(ys)
 
     if all_x and all_y:
         padding_x = (max(all_x) - min(all_x)) * 0.05 or 1

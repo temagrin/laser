@@ -169,6 +169,7 @@ class Laser(pcbnew.ActionPlugin):
 
         centroided_paths = generate_inset_paths_separated_with_centroid(cu_with_holes_multy,
                                                                         step=config.laser_beam_wide)
+
         sorted_data = sort_by_centroid_distance(centroided_paths)
         paths = unpack_sorted_data(sorted_data)
 
@@ -177,16 +178,16 @@ class Laser(pcbnew.ActionPlugin):
 
         machine = Machine()
         gcode_lines = []
+
         for path in paths:
             gcode_lines.extend(
                 machine.generate_gcode_from_paths(path,
                                                   base_speed=config.base_speed,
                                                   max_speed=config.max_speed,
-                                                  speed_increment=config.speed_increment,
                                                   laser_power=config.laser_power,
                                                   round_um=config.round_um,
                                                   ))
-        machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename(), config.laser_power)
+        machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename())
         show_msq(self.title, f"Сохранен файл {config.get_laser_gcode_filename()}")
         return
 
