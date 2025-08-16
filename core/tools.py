@@ -1,6 +1,7 @@
 from math import sqrt
 
-from shapely import unary_union
+import pyclipper
+from shapely import LinearRing
 from shapely.affinity import scale, translate
 from shapely.geometry import MultiPolygon, Polygon
 from matplotlib import cm
@@ -54,7 +55,6 @@ def render_preview(multipolygon):
     minx, miny, maxx, maxy = multipolygon.bounds
     fig, ax = plt.subplots()
 
-    # Приводим к списку полигонов (чтобы работало и с Polygon, и с MultiPolygon)
     if isinstance(multipolygon, Polygon):
         polygons = [multipolygon]
     elif isinstance(multipolygon, MultiPolygon):
@@ -86,40 +86,192 @@ def render_preview(multipolygon):
     plt.show()
 
 
-def generate_inset_paths_for_polygon(polygon: Polygon, step: float):
-    external_paths = []
-    internal_paths = []
+def shapely_to_pyclipper_paths(geom):
+    """
+    Преобразовать Shapely Polygon/MultiPolygon в список путей pyclipper.
+    Каждый путь — список кортежей (x, y) с координатами int.
+    """
+    paths = []
 
+    if isinstance(geom, Polygon):
+        exterior = [(int(x), int(y)) for x, y in geom.exterior.coords]
+        paths.append(exterior)
+        for interior in geom.interiors:
+            hole = [(int(x), int(y)) for x, y in interior.coords]
+            paths.append(hole)
+    elif isinstance(geom, MultiPolygon):
+        for poly in geom.geoms:
+            exterior = [(int(x), int(y)) for x, y in poly.exterior.coords]
+            paths.append(exterior)
+            for interior in poly.interiors:
+                hole = [(int(x), int(y)) for x, y in interior.coords]
+                paths.append(hole)
+    return paths
+
+
+def filter_short_paths_near_holes(paths, holes, length_thresh=30, dist_thresh=5):
+    hole_polygons = [Polygon(hole) for hole in holes]
+    filtered = []
+    for path in paths:
+        poly = Polygon(path)
+        if not poly.is_valid or poly.is_empty:
+            continue
+        # Вычисляем длину контура (периметр)
+        length = poly.length
+        # Находим минимальное расстояние до отверстий
+        distances = [poly.distance(hole) for hole in hole_polygons]
+        min_dist = min(distances) if distances else float('inf')
+        # Отбрасываем короткие и близкие к отверстиям
+        if length < length_thresh and min_dist < dist_thresh:
+            continue
+        filtered.append(path)
+    return filtered
+
+
+def advanced_filter_paths(paths, holes, intersection_ratio_thresh=0.3):
+    hole_polygons = [Polygon(hole) for hole in holes]  # оригинальные отверстия без буфера
+    filtered = []
+
+    for path in paths:
+        poly = Polygon(path)
+        if not poly.is_valid or poly.is_empty:
+            continue
+
+        # Проверяем для каждого отверстия
+        remove_path = False
+        for hole in hole_polygons:
+            if poly.within(hole):
+                # Полностью внутри отверстия — удаляем
+                remove_path = True
+                break
+            elif poly.intersects(hole):
+                inter_area = poly.intersection(hole).area
+                ratio = inter_area / poly.area if poly.area > 0 else 0
+                if ratio > intersection_ratio_thresh:
+                    # Большая часть пути внутри отверстия — удаляем
+                    remove_path = True
+                    break
+
+        if not remove_path:
+            filtered.append(path)
+
+    return filtered
+
+
+def length_of_path(path):
+    length = 0
+    for i in range(1, len(path)):
+        dx = path[i][0] - path[i-1][0]
+        dy = path[i][1] - path[i-1][1]
+        length += (dx*dx + dy*dy)**0.5
+    return length
+
+
+def filter_short_intersecting_paths(paths, length_thresh=None):
+    """
+    Фильтрует пересекающиеся контуры, удаляя из каждой пары пересекающихся самый короткий,
+    если он короче порога length_thresh (если он задан).
+    paths - список контуров (списки точек)
+    length_thresh - порог длины для удаления коротких контуров в пересечении (None - без ограничения)
+    """
+    polygons = [Polygon(p) for p in paths if len(p) >= 3]
+    lengths = [poly.length for poly in polygons]
+    to_remove = set()
+
+    for i in range(len(polygons)):
+        if i in to_remove:
+            continue
+        for j in range(i + 1, len(polygons)):
+            if j in to_remove:
+                continue
+
+            # Используем Clipper для вычисления пересечения
+            pc = pyclipper.Pyclipper()
+            pc.AddPath(paths[i], pyclipper.PT_SUBJECT, True)
+            pc.AddPath(paths[j], pyclipper.PT_CLIP, True)
+            inter = pc.Execute(pyclipper.CT_INTERSECTION)
+
+            if inter:  # Есть пересечение
+                len_i = lengths[i]
+                len_j = lengths[j]
+
+                # Удаляем самый короткий из пары, если ниже threshold
+                if len_i < len_j:
+                    if length_thresh is None or len_i < length_thresh:
+                        to_remove.add(i)
+                else:
+                    if length_thresh is None or len_j < length_thresh:
+                        to_remove.add(j)
+
+    filtered = [paths[i] for i in range(len(paths)) if i not in to_remove]
+    return filtered
+
+
+def generate_inset_paths_for_polygon(polygon: Polygon, step: float):
+    def to_int_coords(coords):
+        return [(int(x), int(y)) for x, y in coords]
+
+    def ensure_path_validity(paths, outer=True):
+        valid_paths = []
+        for path in paths:
+            if len(path) < 3:
+                continue
+            ring = LinearRing(path)
+            if not ring.is_valid:
+                continue
+            is_ccw = ring.is_ccw
+            if outer and not is_ccw:
+                path = path[::-1]
+            elif not outer and is_ccw:
+                path = path[::-1]
+            valid_paths.append(path)
+        return valid_paths
+
+    outer_path = to_int_coords(polygon.exterior.coords)
+    inner_paths = [to_int_coords(hole.coords) for hole in polygon.interiors]
+
+    outer_paths_valid = ensure_path_validity([outer_path], outer=True)
+    if not outer_paths_valid:
+        return []
+    outer_path = outer_paths_valid[0]
+    inner_paths = ensure_path_validity(inner_paths, outer=False)
+
+    pco_outer = pyclipper.PyclipperOffset()
+    pco_outer.AddPath(outer_path, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+
+    inset_paths = []
     i = 1
-    current_geom = polygon
 
     while True:
         offset_distance = -step * i
-        offset_geom = current_geom.buffer(offset_distance)
-
-        if offset_geom.is_empty:
+        outer_offset = pco_outer.Execute(offset_distance)
+        if not outer_offset:
             break
 
-        if isinstance(offset_geom, MultiPolygon):
-            offset_geom = unary_union(offset_geom)
+        outer_offset = [path for path in outer_offset if len(path) >= 3]
+        if not outer_offset:
+            break
 
-        if isinstance(offset_geom, Polygon):
-            polys = [offset_geom]
-        elif isinstance(offset_geom, MultiPolygon):
-            polys = list(offset_geom.geoms)
+        pc = pyclipper.Pyclipper()
+        pc.AddPaths(outer_offset, pyclipper.PT_SUBJECT, True)
+
+        if inner_paths:
+            pc.AddPaths(inner_paths, pyclipper.PT_CLIP, True)
+            clipped = pc.Execute(pyclipper.CT_DIFFERENCE)
         else:
-            polys = []
+            clipped = outer_offset
 
-        for poly in polys:
-            external_paths.append(list(poly.exterior.coords))
+        if not clipped:
+            break
 
-            for interior in poly.interiors:
-                internal_paths.append(list(interior.coords))
+        if not clipped:
+            break
 
+        inset_paths.extend(clipped)
         i += 1
-    internal_paths.reverse()
-    combined_paths = external_paths + internal_paths
-    return combined_paths
+
+    inset_paths = filter_short_paths_near_holes(inset_paths, inner_paths, length_thresh=700000, dist_thresh=700000)
+    return filter_short_intersecting_paths(inset_paths, length_thresh=800000)
 
 
 def generate_inset_paths_separated_with_centroid(multipolygon: MultiPolygon, step: float):

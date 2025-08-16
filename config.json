@@ -1,10 +1,10 @@
 {
     "show_preview": false,
-    "show_preview_path": false,
+    "show_preview_path": true,
     "copper_layer": 2,
-    "laser_beam_wide": 25000,
+    "laser_beam_wide": 20000,
     "base_speed": 900,
-    "max_speed": 1200,
+    "max_speed": 1100,
     "laser_power": 255,
     "round_um": 2,
     "user_dir": "/home/user",
