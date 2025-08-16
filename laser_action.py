@@ -5,8 +5,9 @@ import wx
 from core.geometry import PCB
 from core.machine import Machine
 from core.settings import PluginConfig
-from core.tools import plot_inset_paths, generate_inset_paths, mirror_geometry, offset_geometry, render_preview, \
-    convert_shape_to_shapely
+from core.tools import mirror_geometry, offset_geometry, render_preview, \
+    convert_shape_to_shapely, generate_inset_paths_separated_with_centroid, sort_by_centroid_distance, \
+    unpack_sorted_data, plot_inset_paths
 
 
 class LaserSettingsDialog(wx.Dialog):
@@ -21,16 +22,25 @@ class LaserSettingsDialog(wx.Dialog):
         self.dir_ctrl = wx.TextCtrl(panel)
         dir_btn = wx.Button(panel, label="...")
         dir_btn.Bind(wx.EVT_BUTTON, self.on_choose_dir)
-        hbox_dir.Add(wx.StaticText(panel, label="Рабочая директория:"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
+        hbox_dir.Add(wx.StaticText(panel, label="Рабочая директория:"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL,
+                     border=8)
         hbox_dir.Add(self.dir_ctrl, proportion=1, flag=wx.EXPAND)
         hbox_dir.Add(dir_btn, flag=wx.LEFT, border=8)
         vbox.Add(hbox_dir, flag=wx.EXPAND | wx.ALL, border=10)
 
         hbox_num = wx.BoxSizer(wx.HORIZONTAL)
         self.step_ctrl = wx.TextCtrl(panel)
-        hbox_num.Add(wx.StaticText(panel, label="Шаг лазера (мкм):"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
+        hbox_num.Add(wx.StaticText(panel, label="Диаметр лазерного луча:"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL,
+                     border=8)
         hbox_num.Add(self.step_ctrl, proportion=1, flag=wx.EXPAND)
         vbox.Add(hbox_num, flag=wx.EXPAND | wx.ALL, border=10)
+
+        hbox_num2 = wx.BoxSizer(wx.HORIZONTAL)
+        self.power_ctrl = wx.TextCtrl(panel)
+        hbox_num2.Add(wx.StaticText(panel, label="Мощность лазера:"), flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL,
+                      border=8)
+        hbox_num2.Add(self.power_ctrl, proportion=1, flag=wx.EXPAND)
+        vbox.Add(hbox_num2, flag=wx.EXPAND | wx.ALL, border=10)
 
         hbox_layer = wx.BoxSizer(wx.HORIZONTAL)
         self.layer_choice = wx.Choice(panel, choices=["F.Cu", "B.Cu"])
@@ -58,6 +68,7 @@ class LaserSettingsDialog(wx.Dialog):
         # Установка значений из конфига
         self.dir_ctrl.SetValue(config.user_dir)
         self.step_ctrl.SetValue(str(config.laser_beam_wide))
+        self.power_ctrl.SetValue(str(config.laser_power))
         if config.copper_layer == pcbnew.F_Cu:
             self.layer_choice.SetStringSelection("F.Cu")
         else:
@@ -73,18 +84,18 @@ class LaserSettingsDialog(wx.Dialog):
         return {
             "work_dir": self.dir_ctrl.GetValue(),
             "step": self.step_ctrl.GetValue(),
+            "power": self.power_ctrl.GetValue(),
             "layer": self.layer_choice.GetStringSelection(),
         }
 
 
 def show_msq(title, message):
-        dlg = wx.MessageDialog(None, message, title, wx.OK | wx.ICON_INFORMATION)
-        dlg.ShowModal()
-        dlg.Destroy()
+    dlg = wx.MessageDialog(None, message, title, wx.OK | wx.ICON_INFORMATION)
+    dlg.ShowModal()
+    dlg.Destroy()
 
 
 class Laser(pcbnew.ActionPlugin):
-
     def defaults(self):
         self.description = "Объединение медных объектов слоя и отображение на User_1"
         self.category = "Hardware"
@@ -102,18 +113,19 @@ class Laser(pcbnew.ActionPlugin):
         dlg = LaserSettingsDialog(config, self.title)
         if dlg.ShowModal() != wx.ID_OK:
             dlg.Destroy()
-            return  # пользователь отменил
+            return
         params = dlg.get_parameters()
         dlg.Destroy()
 
         config.user_dir = params.get("work_dir", config.user_dir)
-        config.laser_beam_wide = float(params.get("step", config.laser_beam_wide))
-        layer = params.get("layer", None)
+        config.laser_beam_wide = int(params.get("step", config.laser_beam_wide))
+        config.laser_power = int(params.get("power", config.laser_power))
+
+        layer = params.get("layer", config.copper_layer)
         if layer == "F.Cu":
             config.copper_layer = pcbnew.F_Cu
         elif layer == "B.Cu":
             config.copper_layer = pcbnew.B_Cu
-
         config.save_config()
 
         board = pcbnew.GetBoard()
@@ -147,29 +159,35 @@ class Laser(pcbnew.ActionPlugin):
         else:
             cu_with_holes_multy = cu_multy
 
-        if config.show_preview:
-            render_preview(cu_with_holes_multy)
-
         cu_with_holes_multy = offset_geometry(cu_with_holes_multy, origin_x, origin_y)
         cu_with_holes_multy = mirror_geometry(cu_with_holes_multy)
         if config.copper_layer == pcbnew.B_Cu:
             cu_with_holes_multy = mirror_geometry(cu_with_holes_multy, 'y')
 
-        machine = Machine()
-
-        paths = generate_inset_paths(cu_with_holes_multy, step=config.laser_beam_wide)
-        gcode_lines = machine.generate_gcode_from_paths(paths,
-                                                        base_speed=config.base_speed,
-                                                        speed_increment=config.speed_increment,
-                                                        base_power=config.base_power,
-                                                        power_decrement=config.power_decrement,
-                                                        round_um=config.round_um,
-                                                        outer_speed_boost=config.outer_speed_boost
-                                                        )
-        machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename())
-
         if config.show_preview:
+            render_preview(cu_with_holes_multy)
+
+        centroided_paths = generate_inset_paths_separated_with_centroid(cu_with_holes_multy,
+                                                                        step=config.laser_beam_wide)
+        sorted_data = sort_by_centroid_distance(centroided_paths)
+        paths = unpack_sorted_data(sorted_data)
+
+        if config.show_preview_path:
             plot_inset_paths(paths)
 
+        machine = Machine()
+        gcode_lines = []
+        for path in paths:
+            gcode_lines.extend(
+                machine.generate_gcode_from_paths(path,
+                                                  base_speed=config.base_speed,
+                                                  max_speed=config.max_speed,
+                                                  speed_increment=config.speed_increment,
+                                                  laser_power=config.laser_power,
+                                                  round_um=config.round_um,
+                                                  ))
+        machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename(), config.laser_power)
+        show_msq(self.title, f"Сохранен файл {config.get_laser_gcode_filename()}")
+        return
 
 Laser().register()

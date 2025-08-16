@@ -1,3 +1,5 @@
+from math import sqrt
+
 from shapely import unary_union
 from shapely.affinity import scale, translate
 from shapely.geometry import MultiPolygon, Polygon
@@ -50,8 +52,6 @@ def render_preview(multipolygon):
         return
 
     minx, miny, maxx, maxy = multipolygon.bounds
-    print("MIN-MAX: ", minx, miny, maxx, maxy)
-
     fig, ax = plt.subplots()
 
     # Приводим к списку полигонов (чтобы работало и с Polygon, и с MultiPolygon)
@@ -86,25 +86,10 @@ def render_preview(multipolygon):
     plt.show()
 
 
-def generate_inset_paths(multipolygon: MultiPolygon, step: float):
-    """
-    Генерирует внутренние эквидистантные контуры (inset offsets) для MultiPolygon с шагом step
-    и строит их до полного исчезновения фигуры.
-
-    :param multipolygon: исходный объект MultiPolygon или Polygon (Shapely)
-    :param step: расстояние смещения внутрь (>0), в тех же единицах, что и координаты
-    :return: список уровней offset'а — каждый уровень это список контуров,
-             где каждый контур это список координат [(x, y), ...]
-    """
-    if isinstance(multipolygon, Polygon):
-        current_geom = multipolygon
-    elif isinstance(multipolygon, MultiPolygon):
-        current_geom = unary_union([g for g in multipolygon.geoms if not g.is_empty])
-    else:
-        raise ValueError(f"Unsupported geometry type: {type(multipolygon)}")
-
+def generate_inset_paths_for_polygon(polygon: Polygon, step: float):
     inset_levels = []
     i = 1
+    current_geom = polygon
 
     while True:
         offset_distance = -step * i
@@ -113,22 +98,21 @@ def generate_inset_paths(multipolygon: MultiPolygon, step: float):
         if offset_geom.is_empty:
             break
 
-        # Приводим к списку полигонов
+        # Пробуем объединить части offset-геометрии, чтобы удержать их как одно целое
+        if isinstance(offset_geom, MultiPolygon):
+            offset_geom = unary_union(offset_geom)
+
+        contours = []
+        # В любом случае offset_geom может быть MultiPolygon или Polygon
         if isinstance(offset_geom, Polygon):
             polys = [offset_geom]
         elif isinstance(offset_geom, MultiPolygon):
             polys = list(offset_geom.geoms)
         else:
-            polys = [g for g in offset_geom.geoms if isinstance(g, Polygon)]
+            polys = []
 
-        if not polys:
-            break
-
-        contours = []
         for poly in polys:
-            # внешний контур
             contours.append(list(poly.exterior.coords))
-            # внутренние отверстия
             for interior in poly.interiors:
                 contours.append(list(interior.coords))
 
@@ -138,34 +122,85 @@ def generate_inset_paths(multipolygon: MultiPolygon, step: float):
     return inset_levels
 
 
-def plot_inset_paths(inset_levels):
-    """
-    Отображает сгенерированные эквидистантные пути (выход generate_inset_paths)
-    :param inset_levels: список уровней offset'а, каждый уровень — список контуров (список (x, y))
-    """
+def generate_inset_paths_separated_with_centroid(multipolygon: MultiPolygon, step: float):
+    result = []
+
+    if isinstance(multipolygon, Polygon):
+        centroid = multipolygon.centroid.coords[0]
+        inset_levels = generate_inset_paths_for_polygon(multipolygon, step)
+        result.append((centroid, inset_levels))
+
+    elif isinstance(multipolygon, MultiPolygon):
+        for poly in multipolygon.geoms:
+            if poly.is_empty:
+                continue
+            centroid = poly.centroid.coords[0]
+            inset_levels = generate_inset_paths_for_polygon(poly, step)
+            result.append((centroid, inset_levels))
+
+    else:
+        raise ValueError(f"Unsupported geometry type: {type(multipolygon)}")
+
+    return result
+
+
+def sort_by_centroid_distance(data):
+    if not data:
+        return []
+
+    def distance(p1, p2):
+        return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+    data = data[:]  # копия
+    sorted_data = [data.pop(0)]
+    last_centroid = sorted_data[0][0]
+
+    while data:
+        nearest_index = None
+        nearest_dist = float('inf')
+
+        for i, (centroid, _) in enumerate(data):
+            dist = distance(last_centroid, centroid)
+            if dist < nearest_dist:
+                nearest_dist = dist
+                nearest_index = i
+
+        sorted_data.append(data.pop(nearest_index))
+        last_centroid = sorted_data[-1][0]
+
+    return sorted_data
+
+def unpack_sorted_data(sorted_data):
+    unpacked = []
+    for _, inset_levels in sorted_data:
+        unpacked.append(inset_levels)
+    return unpacked
+
+
+def plot_inset_paths(paths):
+
     fig, ax = plt.subplots()
     ax.set_aspect('equal', adjustable='box')
-
-    # Градиент цветов по числу уровней
-    colors = cm.get_cmap('viridis', len(inset_levels))
-
     all_x, all_y = [], []
+    max_levels = max([len(inset_levels) for inset_levels in paths])
 
-    for level_idx, contours in enumerate(inset_levels):
-        color = colors(level_idx)  # Цвет для этого уровня
-        for contour in contours:
-            if len(contour) < 3:
-                continue  # пропускаем вырожденные
-            poly_patch = MplPolygon(contour, closed=True,
-                                    facecolor='none',
-                                    edgecolor=color,
-                                    linewidth=1)
-            ax.add_patch(poly_patch)
+    colors = cm.get_cmap('viridis', max_levels)
+    for inset_levels in paths:
+        for level_idx, contours in enumerate(inset_levels):
+            color = colors(level_idx)  # Цвет для этого уровня
+            for contour in contours:
+                if len(contour) < 3:
+                    continue  # пропускаем вырожденные
+                poly_patch = MplPolygon(contour, closed=True,
+                                        facecolor='none',
+                                        edgecolor=color,
+                                        linewidth=1)
+                ax.add_patch(poly_patch)
 
-            # Сохраняем координаты для автолимитов
-            xs, ys = zip(*contour)
-            all_x.extend(xs)
-            all_y.extend(ys)
+                # Сохраняем координаты для автолимитов
+                xs, ys = zip(*contour)
+                all_x.extend(xs)
+                all_y.extend(ys)
 
     if all_x and all_y:
         padding_x = (max(all_x) - min(all_x)) * 0.05 or 1
@@ -174,7 +209,7 @@ def plot_inset_paths(inset_levels):
         ax.set_ylim(min(all_y) - padding_y, max(all_y) + padding_y)
 
     ax.grid(True, linestyle='--', alpha=0.5)
-    plt.title("Inset Paths Preview")
+    plt.title("Paths Preview")
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.show()

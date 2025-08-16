@@ -113,6 +113,54 @@ class PCB:
         return poly_set
 
     @staticmethod
+    def create_thick_rectangle_poly_set(draw):
+        if draw.GetShape() != pcbnew.S_RECT:
+            raise ValueError("Объект не является S_RECT")
+
+        start = draw.GetStart()
+        end = draw.GetEnd()
+        line_width = draw.GetWidth()
+        x0, y0 = start.x, start.y
+        x1, y1 = end.x, end.y
+        thickness = line_width // 2
+
+        poly_set = pcbnew.SHAPE_POLY_SET()
+        outline = pcbnew.SHAPE_LINE_CHAIN()
+
+        points = [
+            pcbnew.VECTOR2I(x0-thickness, y0-thickness),
+            pcbnew.VECTOR2I(x1+thickness, y0-thickness),
+            pcbnew.VECTOR2I(x1+thickness, y1+thickness),
+            pcbnew.VECTOR2I(x0-thickness, y1+thickness),
+            pcbnew.VECTOR2I(x0-thickness, y1-thickness),
+            pcbnew.VECTOR2I(x1-thickness, y1-thickness),
+            pcbnew.VECTOR2I(x1-thickness, y0+thickness),
+            pcbnew.VECTOR2I(x0+thickness, y0+thickness),
+            pcbnew.VECTOR2I(x0+thickness, y1-thickness-1),
+            pcbnew.VECTOR2I(x0-thickness, y1-thickness-1),
+            pcbnew.VECTOR2I(x0-thickness, y0-thickness),
+        ]
+
+        for pt in points:
+            outline.Append(pt)
+
+        outline.SetClosed(True)
+        poly_set.AddOutline(outline)
+        return poly_set
+
+    @staticmethod
+    def draw_to_poly_set(draw, lay):
+        if draw.GetShape() == pcbnew.S_RECT:
+            return PCB.create_thick_rectangle_poly_set(draw)
+        else:
+            poly_set = pcbnew.SHAPE_POLY_SET()
+            clearance = 0
+            max_error = 10000
+            error_type = pcbnew.ERROR_INSIDE
+            draw.TransformShapeToPolygon(poly_set, lay, clearance, max_error, error_type)
+            return poly_set
+
+    @staticmethod
     def union_poly_sets(poly_sets):
         if not poly_sets:
             return None
@@ -170,14 +218,6 @@ class PCB:
 
         return poly_set
 
-    @staticmethod
-    def poly_set_to_draw_segments(board, poly_set, lay):
-        poly_shape = pcbnew.PCB_SHAPE(board)
-        poly_shape.SetShape(pcbnew.S_POLYGON)
-        poly_shape.SetLayer(lay)
-        poly_shape.SetPolyShape(poly_set)
-        board.Add(poly_shape)
-
     def get_cu_geometry(self, board):
         poly_sets = []
         hole_sets = []
@@ -186,11 +226,20 @@ class PCB:
         # Сбор медных объектов
         for fp in board.GetFootprints():
             for pad in fp.Pads():
-                if pad.GetLayer() == copper_layer:
-                    poly_set = self.pad_to_poly_set(pad, copper_layer)
-                    if poly_set and not poly_set.IsEmpty():
-                        poly_sets.append(poly_set)
+                attrs = pad.GetAttribute()
+                # трухольное
+                if attrs in [pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH]:
+                    if pad.GetLayer() in [copper_layer, 0]:
+                        poly_set = self.pad_to_poly_set(pad, pad.GetLayer())
+                        if poly_set and not poly_set.IsEmpty():
+                            poly_sets.append(poly_set)
+                else:
+                    if fp.IsFlipped() == (copper_layer == pcbnew.B_Cu):  # если перевернутый и рисуем нижний слой
+                        poly_set = self.pad_to_poly_set(pad, copper_layer)
+                        if poly_set and not poly_set.IsEmpty():
+                            poly_sets.append(poly_set)
 
+                if pad.HasDrilledHole():
                     drill_x = pad.GetDrillSizeX()
                     drill_y = pad.GetDrillSizeY()
                     orientation = pad.GetOrientation().AsDegrees()
@@ -217,6 +266,12 @@ class PCB:
                     poly_set = self.track_to_poly_set(track, copper_layer)
                     if poly_set and not poly_set.IsEmpty():
                         poly_sets.append(poly_set)
+
+        for drawing in board.Drawings():
+            if drawing.GetLayer() == copper_layer:
+                poly_set = self.draw_to_poly_set(drawing, copper_layer)
+                if poly_set and not poly_set.IsEmpty():
+                    poly_sets.append(poly_set)
 
         for zone in board.Zones():
             if zone.GetLayer() == copper_layer:
