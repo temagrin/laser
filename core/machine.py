@@ -19,6 +19,7 @@ class Machine:
         gcode = []
 
         for contour_points in inset_levels:
+            last_command = ""
             if len(contour_points) < 2:
                 continue
 
@@ -66,8 +67,10 @@ class Machine:
                     )
                     first = False
                 else:
-                    gcode.append(f"X{x_mm:.3f}Y{y_mm:.3f}")
-
+                    new_command = f"X{x_mm:.3f}Y{y_mm:.3f}"
+                    if new_command != last_command:
+                        gcode.append(f"{new_command}")
+                        last_command = f"{new_command}"
             # замыкание контура
             gcode.append(f"X{start_x:.3f}Y{start_y:.3f}")
 
