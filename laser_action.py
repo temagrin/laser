@@ -7,7 +7,7 @@ from core.geometry import PCB
 from core.machine import Machine
 from core.polygons import GeometryTool
 from core.settings import PluginConfig
-from core.tools import plot_inset_paths, sort_paths_minimize_transitions
+from core.tools import plot_inset_paths
 
 
 class LaserSettingsDialog(wx.Dialog):
