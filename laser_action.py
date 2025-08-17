@@ -133,6 +133,8 @@ class Laser(pcbnew.ActionPlugin):
 
     def Run(self):
         config = self.get_gui_config()
+        if not config:
+            return
 
         board = pcbnew.GetBoard()
         if not board:
