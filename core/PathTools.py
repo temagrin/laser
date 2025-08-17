@@ -1,5 +1,5 @@
 from shapely import unary_union, MultiPolygon, Polygon
-from core.tools import get_path_length
+from core.tools import get_path_length, sort_paths_minimize_transitions
 
 
 class ShapelyPathGenerator:
@@ -33,4 +33,4 @@ class ShapelyPathGenerator:
                     if get_path_length(hole_contour_points) > min_length:
                         inset_levels.append(hole_contour_points)
             i += 1
-        return inset_levels
+        return sort_paths_minimize_transitions(inset_levels)

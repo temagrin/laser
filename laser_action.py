@@ -159,24 +159,20 @@ class Laser(pcbnew.ActionPlugin):
 
         paths = []
         for figure in polygons:
-            paths.append(sort_paths_minimize_transitions(ShapelyPathGenerator.generate_inset_paths(figure, config.laser_beam_wide)))
+            paths.append(ShapelyPathGenerator.generate_inset_paths(figure, config.laser_beam_wide))
 
         if config.show_preview_path:
             plot_inset_paths(paths)
 
-        machine = Machine()
-        gcode_lines = []
-
-        for path in paths:
-            gcode_lines.extend(
-                machine.generate_gcode_from_paths(path,
-                                                  base_speed=config.base_speed,
-                                                  short_speed=config.short_speed,
-                                                  laser_power=config.laser_power,
-                                                  round_um=config.round_um,
-                                                  ))
-        machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename())
+        gcode_lines = Machine.generate_gcode_from_paths(paths,
+                                                        base_speed=config.base_speed,
+                                                        short_speed=config.short_speed,
+                                                        laser_power=config.laser_power,
+                                                        round_um=config.round_um,
+                                                        )
+        Machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename())
         show_msq(self.title, f"Сохранен файл {config.get_laser_gcode_filename()}")
         return
+
 
 Laser().register()

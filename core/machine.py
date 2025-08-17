@@ -5,7 +5,7 @@ class Machine:
     @classmethod
     def generate_gcode_from_paths(
             cls,
-            inset_levels,
+            paths,
             base_speed=900,
             short_speed=750,
             laser_power=255,
@@ -17,47 +17,49 @@ class Machine:
         nm_to_mm = 1e-6
         scale = 1e-3 * round_um
         gcode = []
-
-        for contour_points in inset_levels:
-            last_command = ""
-            if len(contour_points) < 2:
-                continue
-
-            # --- вычисляем длину контура ---
-            length = get_path_length(contour_points)
-            length *= nm_to_mm
-            # --- фильтрация слишком коротких ---
-            if length < skip_min_length:
-                continue
-            if length <= min_contour_length:
-                speed = short_speed
-            elif length >= max_contour_length:
-                speed = base_speed
-            else:
-                ratio = (length - min_contour_length) / (max_contour_length - min_contour_length)
-                speed = base_speed - ratio * (base_speed - short_speed)
-
-            # --- генерация G-кода ---
-            start_x = round(contour_points[0][0] * nm_to_mm / scale) * scale
-            start_y = round(contour_points[0][1] * nm_to_mm / scale) * scale
-            gcode.append(f"G0X{start_x:.3f}Y{start_y:.3f}S0")
-
-            first = True
-            for x_nm, y_nm in contour_points[1:]:
-                x_mm = round(x_nm * nm_to_mm / scale) * scale
-                y_mm = round(y_nm * nm_to_mm / scale) * scale
-                if first:
-                    gcode.append(
-                        f"G1X{x_mm:.3f}Y{y_mm:.3f}F{speed:.1f}S{laser_power}"
-                    )
-                    first = False
+        for inset_levels in paths:
+            for contour_points in inset_levels:
+                last_command = ""
+                if len(contour_points) < 2:
+                    continue
+                # --- вычисляем длину контура ---
+                length = get_path_length(contour_points)
+                length *= nm_to_mm
+                # --- фильтрация слишком коротких ---
+                if length < skip_min_length:
+                    continue
+                if length <= min_contour_length:
+                    speed = short_speed
+                elif length >= max_contour_length:
+                    speed = base_speed
                 else:
-                    new_command = f"X{x_mm:.3f}Y{y_mm:.3f}"
-                    if new_command != last_command:
-                        gcode.append(f"{new_command}")
-                        last_command = f"{new_command}"
-            # замыкание контура
-            gcode.append(f"X{start_x:.3f}Y{start_y:.3f}")
+                    ratio = (length - min_contour_length) / (max_contour_length - min_contour_length)
+                    speed = base_speed - ratio * (base_speed - short_speed)
+
+                # --- генерация G-кода ---
+                start_x = round(contour_points[0][0] * nm_to_mm / scale) * scale
+                start_y = round(contour_points[0][1] * nm_to_mm / scale) * scale
+                gcode.append(f"G0X{start_x:.3f}Y{start_y:.3f}S0")
+
+                first = True
+                for x_nm, y_nm in contour_points[1:]:
+                    x_mm = round(x_nm * nm_to_mm / scale) * scale
+                    y_mm = round(y_nm * nm_to_mm / scale) * scale
+                    if first:
+                        gcode.append(
+                            f"G1X{x_mm:.3f}Y{y_mm:.3f}F{speed:.1f}S{laser_power}"
+                        )
+                        first = False
+                    else:
+                        new_command = f"X{x_mm:.3f}Y{y_mm:.3f}"
+                        if new_command != last_command:
+                            gcode.append(f"{new_command}")
+                            last_command = f"{new_command}"
+
+                # замыкание контура если небыло замкнуто из самого контура
+                new_command = f"X{start_x:.3f}Y{start_y:.3f}"
+                if new_command != last_command:
+                    gcode.append(new_command)
 
         return gcode
 
