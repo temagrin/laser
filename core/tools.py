@@ -1,8 +1,5 @@
 import math
 import numpy as np
-from matplotlib import cm
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon as MplPolygon
 
 
 def get_path_length(contour_points):
@@ -108,37 +105,3 @@ def sort_paths(paths):
 
     sorted_paths = [paths[i] for i in sorted_indices]
     return sorted_paths
-
-
-def plot_inset_paths(paths):
-    fig, ax = plt.subplots()
-    ax.set_aspect('equal', adjustable='box')
-    all_x, all_y = [], []
-    for figure_idx, figure in enumerate(paths):
-        colors = cm.get_cmap('viridis', len(figure))
-        for level_idx, contour in enumerate(figure):
-            color = colors(level_idx)  # Цвет для этого уровня
-            if len(contour) < 3:
-                continue  # пропускаем вырожденные
-            poly_patch = MplPolygon(contour, closed=True,
-                                    facecolor='none',
-                                    edgecolor=color,
-                                    linewidth=1)
-            ax.add_patch(poly_patch)
-
-            xs, ys = zip(*contour)
-            all_x.extend(xs)
-            all_y.extend(ys)
-
-    if all_x and all_y:
-        padding_x = (max(all_x) - min(all_x)) * 0.05 or 1
-        padding_y = (max(all_y) - min(all_y)) * 0.05 or 1
-        ax.set_xlim(min(all_x) - padding_x, max(all_x) + padding_x)
-        ax.set_ylim(min(all_y) - padding_y, max(all_y) + padding_y)
-
-    ax.grid(True, linestyle='--', alpha=0.5)
-    plt.title("Paths Preview")
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.show()
-

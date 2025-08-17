@@ -1,8 +1,5 @@
 from math import sqrt
 
-from matplotlib import cm, pyplot as plt
-from matplotlib.patches import Polygon as MplPolygon
-
 from shapely import MultiPolygon, Polygon
 from shapely.affinity import translate, scale
 
@@ -123,40 +120,3 @@ class GeometryTool:
                     hole = [(int(x), int(y)) for x, y in interior.coords]
                     paths.append(hole)
         return paths
-
-    @staticmethod
-    def render_preview(polygons):
-        if not polygons:
-            print("Пустая геометрия для отрисовки")
-            return
-
-        all_x, all_y = [], []
-        for p in polygons:
-            minx, miny, maxx, maxy = p.bounds
-            all_x.extend([minx, maxx])
-            all_y.extend([miny, maxy])
-
-        fig, ax = plt.subplots()
-        colors = cm.get_cmap('viridis', len(polygons))
-
-        for index, poly in enumerate(polygons):
-            # ===== внешний контур =====
-            exterior_coords = list(poly.exterior.coords)
-            ax.add_patch(MplPolygon(exterior_coords, closed=True,
-                                    facecolor=colors(index), edgecolor='black'))
-
-            # ===== отверстия =====
-            for interior in poly.interiors:
-                interior_coords = list(interior.coords)
-                ax.add_patch(MplPolygon(interior_coords, closed=True,
-                                        facecolor='white', edgecolor='black'))
-
-        ax.set_xlim(min(all_x), max(all_x))
-        ax.set_ylim(min(all_y), max(all_y))
-        ax.set_aspect('equal', adjustable='box')
-
-        plt.title("MultiPolygon preview")
-        plt.xlabel("X")
-        plt.ylabel("Y")
-        plt.grid(True)
-        plt.show()

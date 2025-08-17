@@ -2,12 +2,12 @@ import os
 import pcbnew
 import wx
 
-from core.PathTools import ShapelyPathGenerator
+from core.path_tools import ShapelyPathGenerator
 from core.geometry import PCB
 from core.machine import Machine
 from core.polygons import GeometryTool
+from core.previewer import Plotter
 from core.settings import PluginConfig
-from core.tools import plot_inset_paths
 
 
 class LaserSettingsDialog(wx.Dialog):
@@ -133,13 +133,12 @@ class Laser(pcbnew.ActionPlugin):
             show_msq(self.title, "Ошибка: нет открытой платы")
             return
 
-        pcb = PCB()
-        origin_x, origin_y = pcb.get_board_origin_from_edges(board)
+        origin_x, origin_y = PCB.get_board_origin_from_edges(board)
         if origin_x == 0 or origin_y == 0:
             show_msq(self.title, "Не задана область обрезки платы")
             return
 
-        poly_coords, hole_coords = pcb.get_cu_geometry(
+        poly_coords, hole_coords = PCB.get_cu_geometry(
             board=board, copper_layer=config.copper_layer, tent_via=False, tent_th=False, arc_segments=32)
 
         if not poly_coords:
@@ -155,14 +154,14 @@ class Laser(pcbnew.ActionPlugin):
 
         polygons = GeometryTool.extract_sorted_polygons(shapely_multy)
         if config.show_preview:
-            GeometryTool.render_preview(polygons)
+            Plotter.render_preview(polygons)
 
         paths = []
         for figure in polygons:
             paths.append(ShapelyPathGenerator.generate_inset_paths(figure, config.laser_beam_wide))
 
         if config.show_preview_path:
-            plot_inset_paths(paths)
+            Plotter.plot_inset_paths(paths)
 
         gcode_lines = Machine.generate_gcode_from_paths(paths,
                                                         base_speed=config.base_speed,
