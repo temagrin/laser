@@ -35,7 +35,8 @@ class Laser(pcbnew.ActionPlugin):
 
         origin_x, origin_y = PCB.get_board_origin_from_edges(board)
         if origin_x == 0 or origin_y == 0:
-            show_msq(self.title, "Не задана область обрезки платы")
+            show_msq(self.title, "Не задана область обрезки платы. Расположите на слое Edge.cut прямоугольник - "
+                                 "границы платы")
             return
 
         poly_coords, hole_coords = PCB.get_cu_geometry(
