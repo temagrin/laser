@@ -4,18 +4,23 @@ import pcbnew
 
 
 class PluginConfig:
-    def __init__(self, plugin_path):
-        self.show_preview = True
+    def __init__(self):
+        self._config_file_name = os.path.join(os.path.dirname(__file__), "config.json")
+        self.max_contour_length = 15.0
+        self.min_contour_length = 1.2
+        self.skip_min_length = 0.05
+        self.arc_segments = 32
+        self.tent_th = False
+        self.tent_via = False
+        self.show_preview = False
         self.show_preview_path = False
         self.copper_layer = pcbnew.B_Cu
-        self.laser_beam_wide = 15000
+        self.laser_beam_wide = 25000
         self.base_speed = 900
         self.short_speed = 750
         self.laser_power = 255
         self.round_um = 2
-        self.config_file_name = os.path.join(plugin_path, "config.json")
         self.user_dir = "/home/user"
-        self.expose_holes = True
 
     def get_laser_gcode_filename(self):
         if self.copper_layer == pcbnew.B_Cu:
@@ -25,10 +30,10 @@ class PluginConfig:
         return os.path.join(self.user_dir, filename)
 
     def load_config(self):
-        if not os.path.isfile(self.config_file_name):
+        if not os.path.isfile(self._config_file_name):
             return  # Файл не найден — остаются значения по умолчанию
         try:
-            with open(self.config_file_name, "r") as f:
+            with open(self._config_file_name, "r") as f:
                 data = json.load(f)
             self.show_preview = data.get("show_preview", self.show_preview)
             self.show_preview_path = data.get("show_preview_path", self.show_preview_path)
@@ -48,7 +53,7 @@ class PluginConfig:
             self.laser_power = int(data.get("laser_power", self.laser_power))
             self.round_um = int(data.get("round_um", self.round_um))
             self.user_dir = data.get("user_dir", self.user_dir)
-            self.expose_holes = bool(data.get("expose_holes", self.expose_holes))
+
         except Exception as e:
             print(f"Ошибка при загрузке конфига: {e}")
 
@@ -63,10 +68,9 @@ class PluginConfig:
             "laser_power": self.laser_power,
             "round_um": self.round_um,
             "user_dir": self.user_dir,
-            "expose_holes": self.expose_holes,
         }
         try:
-            with open(self.config_file_name, "w") as f:
+            with open(self._config_file_name, "w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
             print(f"Ошибка при сохранении конфига: {e}")

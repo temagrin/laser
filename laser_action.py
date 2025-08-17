@@ -96,20 +96,21 @@ def show_msq(title, message):
 
 
 class Laser(pcbnew.ActionPlugin):
-    def defaults(self):
-        self.description = "Объединение медных объектов слоя и отображение на User_1"
-        self.category = "Hardware"
-        self.name = "Laser processing"
+    def __init__(self):
+        super().__init__()
         self.title = "Laser processing"
-        self.show_toolbar_button = True
-        self.plugin_path = os.path.dirname(__file__)
-        self.icon_file_name = os.path.join(self.plugin_path, "icons/icon.svg")
+        self.name = "Laser processing"
+        self.category = "Hardware"
+        self.description = "Генератор GCODE для лазерного векторного экспонирования"
 
-    def Run(self):
-        config = PluginConfig(plugin_path=self.plugin_path)
+    def defaults(self):
+        self.show_toolbar_button = True
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icons/icon.svg")
+
+    def get_gui_config(self):
+        config = PluginConfig()
         config.load_config()
 
-        # Диалог настройки
         dlg = LaserSettingsDialog(config, self.title)
         if dlg.ShowModal() != wx.ID_OK:
             dlg.Destroy()
@@ -126,7 +127,12 @@ class Laser(pcbnew.ActionPlugin):
             config.copper_layer = pcbnew.F_Cu
         elif layer == "B.Cu":
             config.copper_layer = pcbnew.B_Cu
+
         config.save_config()
+        return config
+
+    def Run(self):
+        config = self.get_gui_config()
 
         board = pcbnew.GetBoard()
         if not board:
@@ -139,7 +145,11 @@ class Laser(pcbnew.ActionPlugin):
             return
 
         poly_coords, hole_coords = PCB.get_cu_geometry(
-            board=board, copper_layer=config.copper_layer, tent_via=False, tent_th=False, arc_segments=32)
+            board=board,
+            copper_layer=config.copper_layer,
+            tent_via=config.tent_via,
+            tent_th=config.tent_th,
+            arc_segments=config.arc_segments)
 
         if not poly_coords:
             show_msq(self.title, "На выбранном слое нет медных объектов")
@@ -163,13 +173,17 @@ class Laser(pcbnew.ActionPlugin):
         if config.show_preview_path:
             Plotter.plot_inset_paths(paths)
 
-        gcode_lines = Machine.generate_gcode_from_paths(paths,
-                                                        base_speed=config.base_speed,
-                                                        short_speed=config.short_speed,
-                                                        laser_power=config.laser_power,
-                                                        round_um=config.round_um,
-                                                        )
-        Machine.save_gcode_to_file(gcode_lines, config.get_laser_gcode_filename())
+        Machine.generate_gcode_to_file(
+            paths=paths,
+            filename=config.get_laser_gcode_filename(),
+            base_speed=config.base_speed,
+            short_speed=config.short_speed,
+            laser_power=config.laser_power,
+            round_um=config.round_um,
+            skip_min_length=config.skip_min_length,
+            min_contour_length=config.min_contour_length,
+            max_contour_length=config.max_contour_length)
+
         show_msq(self.title, f"Сохранен файл {config.get_laser_gcode_filename()}")
         return
 
