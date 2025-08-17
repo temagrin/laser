@@ -1,6 +1,5 @@
 import os
 import pcbnew
-import wx
 
 from core.gui import get_gui_config, show_msq, PenFrame
 from core.path_tools import ShapelyPathGenerator
