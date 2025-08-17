@@ -6,12 +6,12 @@ class PluginConfig:
     COPPER_LAYERS = {0: "F.Cu", 2: "B.Cu"}
     FIELDS = {
         "user_dir":             {"default": "/home/user", "type": str, "label": "Рабочая директория"},
+        "copper_layer": {"default": 2, "type": int, "label": "Слой меди", "choices": COPPER_LAYERS},
         "laser_beam_wide":      {"default": 25000, "type": int, "label": "Диаметр лазерного луча (нм)"},
-        "laser_power":          {"default": 255, "type": int, "label": "Мощность лазера"},
-        "copper_layer":         {"default": 2, "type": int, "label": "Слой меди", "choices": COPPER_LAYERS},
+        "laser_power":          {"default": 255, "type": int, "label": "Мощность лазера (S)"},
         "base_speed":           {"default": 900, "type": int, "label": "Базовая скорость (F)"},
         "short_speed":          {"default": 750, "type": int, "label": "Скорость коротких участков (F)"},
-        "arc_segments":         {"default": 32, "type": int, "label": "Сегментация окружностей"},
+        "arc_segments":         {"default": 32, "type": int, "label": "Сегментация окружностей (ед)"},
         "round_um":             {"default": 2, "type": int, "label": "Округление координат (мкм)"},
         "max_contour_length":   {"default": 15, "type": int, "label": "Макс. длина контура (мм)"},
         "min_contour_length":   {"default": 1, "type": int, "label": "Мин. длина контура (мм)"},
