@@ -4,11 +4,7 @@ from pcbnew import ERROR_INSIDE
 
 MAX_ERROR = 10000
 
-
 class PCB:
-    def __init__(self, config):
-        self.config = config
-
     @staticmethod
     def get_board_origin_from_edges(board):
         """
@@ -161,19 +157,7 @@ class PCB:
             return poly_set
 
     @staticmethod
-    def union_poly_sets(poly_sets):
-        if not poly_sets:
-            return None
-        filtered = [ps for ps in poly_sets if ps and not ps.IsEmpty()]
-        if not filtered:
-            return None
-        result = pcbnew.SHAPE_POLY_SET(filtered[0])
-        for ps in filtered[1:]:
-            result.BooleanAdd(ps)
-        return result
-
-    @staticmethod
-    def create_slot_from_object(center, drill_x, drill_y, orientation_degrees):
+    def create_slot_from_object(center, drill_x, drill_y, orientation_degrees, segments):
         angle_rad = math.radians(orientation_degrees)
 
         length = max(drill_x, drill_y)  # общая длина прорези (включая торцы)
@@ -191,23 +175,18 @@ class PCB:
 
         points = []
 
-        segments = 32  # количество сегментов для аппроксимации дуг
-
-        # Левая полуокружность (сверху вниз)
         for i in range(segments + 1):
             ang = math.pi / 2 + math.pi * i / segments  # от 90° до 270°
             x = -half_length + radius * math.cos(ang)
             y = radius * math.sin(ang)
             points.append((x, y))
 
-        # Правая полуокружность (снизу вверх)
         for i in range(segments + 1):
             ang = 3 * math.pi / 2 + math.pi * i / segments  # от 270° до 450°
             x = half_length + radius * math.cos(ang)
             y = radius * math.sin(ang)
             points.append((x, y))
 
-        # Поворот и перенос точек в центр + ориентация
         for x, y in points:
             xr = int(center.x + (x * math.cos(angle_rad) - y * math.sin(angle_rad)))
             yr = int(center.y + (x * math.sin(angle_rad) + y * math.cos(angle_rad)))
@@ -218,23 +197,49 @@ class PCB:
 
         return poly_set
 
-    def get_cu_geometry(self, board):
+    @staticmethod
+    def union_poly_sets(poly_sets):
+        if not poly_sets:
+            return None
+        filtered = [ps for ps in poly_sets if ps and not ps.IsEmpty()]
+        if not filtered:
+            return None
+        result = pcbnew.SHAPE_POLY_SET(filtered[0])
+        for ps in filtered[1:]:
+            result.BooleanAdd(ps)
+        return result
+
+    @staticmethod
+    def get_polygon_coordinates(shape):
+        polygons = []
+        if not shape or shape.IsEmpty():
+            return polygons
+
+        for i in range(shape.OutlineCount()):
+            outline = shape.Outline(i)
+            points = []
+            for v in range(outline.GetPointCount()):
+                vertex = outline.GetPoint(v)
+                points.append((vertex.x, vertex.y))
+            polygons.append(points)
+        return polygons
+
+    def get_cu_geometry(self, board, copper_layer, tent_via=False, tent_th=False, arc_segments=32):
         poly_sets = []
         hole_sets = []
         clearance = 0
-        copper_layer = self.config.copper_layer
-        # Сбор медных объектов
         for fp in board.GetFootprints():
             for pad in fp.Pads():
                 attrs = pad.GetAttribute()
-                # трухольное
+                # THROUGH-HOLE
                 if attrs in [pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH]:
                     if pad.GetLayer() in [copper_layer, 0]:
                         poly_set = self.pad_to_poly_set(pad, pad.GetLayer())
                         if poly_set and not poly_set.IsEmpty():
                             poly_sets.append(poly_set)
+                # SMD
                 else:
-                    if fp.IsFlipped() == (copper_layer == pcbnew.B_Cu):  # если перевернутый и рисуем нижний слой
+                    if fp.IsFlipped() == (copper_layer == pcbnew.B_Cu):
                         poly_set = self.pad_to_poly_set(pad, copper_layer)
                         if poly_set and not poly_set.IsEmpty():
                             poly_sets.append(poly_set)
@@ -242,9 +247,10 @@ class PCB:
                 if pad.HasDrilledHole():
                     drill_x = pad.GetDrillSizeX()
                     drill_y = pad.GetDrillSizeY()
+                    pos = pad.GetPosition()
                     orientation = pad.GetOrientation().AsDegrees()
-                    if drill_x > 0 and drill_y > 0:
-                        hole_poly = self.create_slot_from_object(pad.GetPosition(), drill_x, drill_y, orientation)
+                    if drill_x > 0 and drill_y > 0 and not tent_th:
+                        hole_poly = self.create_slot_from_object(pos, drill_x, drill_y, orientation, arc_segments)
                         hole_sets.append(hole_poly)
 
         for track in board.GetTracks():
@@ -254,11 +260,11 @@ class PCB:
                 track.TransformShapeToPolygon(poly_set, copper_layer, clearance, MAX_ERROR, ERROR_INSIDE)
                 if poly_set and not poly_set.IsEmpty():
                     poly_sets.append(poly_set)
-                drill_x = track.GetDrill()
-                drill_y = track.GetDrill()
+                drill = track.GetDrill()
                 orientation = 0
-                if drill_x > 0 and drill_y > 0:
-                    hole_poly = self.create_slot_from_object(track.GetPosition(), drill_x, drill_y, orientation)
+                pos = track.GetPosition()
+                if drill > 0 and not tent_via:
+                    hole_poly = self.create_slot_from_object(pos, drill, drill, orientation, arc_segments)
                     hole_sets.append(hole_poly)
 
             elif cls == "PCB_TRACK":
@@ -279,4 +285,8 @@ class PCB:
                 if poly_set and not poly_set.IsEmpty():
                     poly_sets.append(poly_set)
 
-        return poly_sets, hole_sets
+        poly_sets_multy = self.union_poly_sets(poly_sets)
+        holy_sets_multy = self.union_poly_sets(hole_sets)
+        poly_sets_coords = self.get_polygon_coordinates(poly_sets_multy)
+        holy_sets_coords = self.get_polygon_coordinates(holy_sets_multy)
+        return poly_sets_coords, holy_sets_coords

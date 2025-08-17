@@ -10,7 +10,7 @@ class PluginConfig:
         self.copper_layer = pcbnew.B_Cu
         self.laser_beam_wide = 15000
         self.base_speed = 900
-        self.max_speed = 1200
+        self.short_speed = 750
         self.laser_power = 255
         self.round_um = 2
         self.config_file_name = os.path.join(plugin_path, "config.json")
@@ -44,7 +44,7 @@ class PluginConfig:
 
             self.laser_beam_wide = int(data.get("laser_beam_wide", self.laser_beam_wide))
             self.base_speed = int(data.get("base_speed", self.base_speed))
-            self.max_speed = int(data.get("max_speed", self.base_speed))
+            self.short_speed = int(data.get("short_speed", self.short_speed))
             self.laser_power = int(data.get("laser_power", self.laser_power))
             self.round_um = int(data.get("round_um", self.round_um))
             self.user_dir = data.get("user_dir", self.user_dir)
@@ -59,7 +59,7 @@ class PluginConfig:
             "copper_layer": self.copper_layer,
             "laser_beam_wide": self.laser_beam_wide,
             "base_speed": self.base_speed,
-            "max_speed": self.max_speed,
+            "short_speed": self.short_speed,
             "laser_power": self.laser_power,
             "round_um": self.round_um,
             "user_dir": self.user_dir,

@@ -1,4 +1,4 @@
-import math
+from core.tools import get_path_length
 
 
 class Machine:
@@ -6,13 +6,13 @@ class Machine:
     def generate_gcode_from_paths(
             cls,
             inset_levels,
-            base_speed=900,  # минимальная скорость (для самых длинных контуров)
-            max_speed=1500,  # максимальная скорость (для самых коротких контуров)
+            base_speed=900,
+            short_speed=750,
             laser_power=255,
             round_um=2,
-            skip_min_length=0.05,  # отбрасываем слишком короткие контуры (мм)
-            min_contour_length=1.5,  # длина ниже которой уже макс. скорость (мм)
-            max_contour_length=15.0,  # длина выше которой уже миним. скорость (мм)
+            skip_min_length=0.05,
+            min_contour_length=1.5,
+            max_contour_length=15.0,
     ):
         nm_to_mm = 1e-6
         scale = 1e-3 * round_um
@@ -24,33 +24,18 @@ class Machine:
                 continue
 
             # --- вычисляем длину контура ---
-            length = 0.0
-            prev_x, prev_y = contour_points[0]
-            first_x, first_y = contour_points[0]
-
-            for x_nm, y_nm in contour_points[1:]:
-                x = x_nm
-                y = y_nm
-                length += math.hypot(x - prev_x, y - prev_y)
-                prev_x, prev_y = x, y
-            # замыкаем контур
-
-            length += math.hypot(prev_x - first_x, prev_y - first_y)
+            length = get_path_length(contour_points)
             length *= nm_to_mm
-
             # --- фильтрация слишком коротких ---
             if length < skip_min_length:
                 continue
-
-            # --- расчет скорости (инвертированная логика) ---
             if length <= min_contour_length:
-                speed = max_speed
+                speed = short_speed
             elif length >= max_contour_length:
                 speed = base_speed
             else:
-                # линейная интерполяция от max_speed к base_speed
                 ratio = (length - min_contour_length) / (max_contour_length - min_contour_length)
-                speed = max_speed - ratio * (max_speed - base_speed)
+                speed = base_speed - ratio * (base_speed - short_speed)
 
             # --- генерация G-кода ---
             start_x = round(contour_points[0][0] * nm_to_mm / scale) * scale

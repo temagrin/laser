@@ -2,12 +2,12 @@ import os
 import pcbnew
 import wx
 
+from core.PathTools import ShapelyPathGenerator
 from core.geometry import PCB
 from core.machine import Machine
+from core.polygons import GeometryTool
 from core.settings import PluginConfig
-from core.tools import mirror_geometry, offset_geometry, render_preview, \
-    convert_shape_to_shapely, generate_inset_paths_separated_with_centroid, sort_by_centroid_distance, \
-    unpack_sorted_data, plot_inset_paths
+from core.tools import plot_inset_paths, sort_paths_minimize_transitions
 
 
 class LaserSettingsDialog(wx.Dialog):
@@ -133,45 +133,33 @@ class Laser(pcbnew.ActionPlugin):
             show_msq(self.title, "Ошибка: нет открытой платы")
             return
 
-        pcb = PCB(config=config)
+        pcb = PCB()
         origin_x, origin_y = pcb.get_board_origin_from_edges(board)
         if origin_x == 0 or origin_y == 0:
             show_msq(self.title, "Не задана область обрезки платы")
             return
 
-        poly_sets, hole_sets = pcb.get_cu_geometry(board)
+        poly_coords, hole_coords = pcb.get_cu_geometry(
+            board=board, copper_layer=config.copper_layer, tent_via=False, tent_th=False, arc_segments=32)
 
-        if not poly_sets:
+        if not poly_coords:
             show_msq(self.title, "На выбранном слое нет медных объектов")
             return
 
-        union_poly_set = pcb.union_poly_sets(poly_sets)
-        if union_poly_set is None or union_poly_set.IsEmpty():
-            show_msq(self.title, "Ошибка при объединении полигонов")
-            return
-        cu_multy = convert_shape_to_shapely(union_poly_set)
+        shapely_multy = GeometryTool.get_shapely_complete_multy_poly(poly_coords, hole_coords)
+        shapely_multy = GeometryTool.offset_geometry(shapely_multy, origin_x, origin_y)
+        shapely_multy = GeometryTool.mirror_geometry(shapely_multy)
 
-        # Экспонировать с отверстиями
-        if config.expose_holes and hole_sets:
-            holes_poly_set = pcb.union_poly_sets(hole_sets)
-            ho_multy = convert_shape_to_shapely(holes_poly_set)
-            cu_with_holes_multy = cu_multy.difference(ho_multy)
-        else:
-            cu_with_holes_multy = cu_multy
-
-        cu_with_holes_multy = offset_geometry(cu_with_holes_multy, origin_x, origin_y)
-        cu_with_holes_multy = mirror_geometry(cu_with_holes_multy)
         if config.copper_layer == pcbnew.B_Cu:
-            cu_with_holes_multy = mirror_geometry(cu_with_holes_multy, 'y')
+            shapely_multy = GeometryTool.mirror_geometry(shapely_multy, 'y')
 
+        polygons = GeometryTool.extract_sorted_polygons(shapely_multy)
         if config.show_preview:
-            render_preview(cu_with_holes_multy)
+            GeometryTool.render_preview(polygons)
 
-        centroided_paths = generate_inset_paths_separated_with_centroid(cu_with_holes_multy,
-                                                                        step=config.laser_beam_wide)
-
-        sorted_data = sort_by_centroid_distance(centroided_paths)
-        paths = unpack_sorted_data(sorted_data)
+        paths = []
+        for figure in polygons:
+            paths.append(sort_paths_minimize_transitions(ShapelyPathGenerator.generate_inset_paths(figure, config.laser_beam_wide)))
 
         if config.show_preview_path:
             plot_inset_paths(paths)
@@ -183,7 +171,7 @@ class Laser(pcbnew.ActionPlugin):
             gcode_lines.extend(
                 machine.generate_gcode_from_paths(path,
                                                   base_speed=config.base_speed,
-                                                  max_speed=config.max_speed,
+                                                  short_speed=config.short_speed,
                                                   laser_power=config.laser_power,
                                                   round_um=config.round_um,
                                                   ))
