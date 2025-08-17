@@ -11,7 +11,6 @@ class Machine:
             short_speed=750,
             laser_power=255,
             round_um=2,
-            skip_min_length=0.05,
             min_contour_length=1.5,
             max_contour_length=15.0,
     ):
@@ -25,12 +24,8 @@ class Machine:
                     if len(contour_points) < 2:
                         continue
 
-                    # --- вычисляем длину контура ---
                     length = get_path_length(contour_points)
                     length *= nm_to_mm
-                    # --- фильтрация слишком коротких ---
-                    if length < skip_min_length:
-                        continue
                     if length <= min_contour_length:
                         speed = short_speed
                     elif length >= max_contour_length:

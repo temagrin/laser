@@ -32,8 +32,8 @@ class GeometryTool:
         """
         Зеркально отражает Polygon или MultiPolygon по указанной оси без смещения.
 
-        :param geom: объект Polygon или MultiPolygon
-        :param axis: 'x' — зеркалить по горизонтальной оси, 'y' — по вертикальной
+        :param geom: Объект Polygon или MultiPolygon
+        :param axis: 'x' — зеркалит по горизонтальной оси, 'y' — по вертикальной
         :param around_center: если True — отражение относительно центра bounds объекта
         :return: отражённый объект
         """
