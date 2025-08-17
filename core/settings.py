@@ -64,6 +64,3 @@ class PluginConfig:
         except Exception as e:
             print(f"Ошибка при сохранении конфига: {e}")
 
-    def get_laser_gcode_filename(self):
-        filename = "laser_bottom.gcode" if self.copper_layer == 2 else "laser_front.gcode"
-        return os.path.join(self.user_dir, filename)

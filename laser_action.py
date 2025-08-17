@@ -67,18 +67,21 @@ class Laser(pcbnew.ActionPlugin):
         if config.show_paths:
             Plotter.plot_inset_paths(paths)
 
+        filename = f"laser_{config.COPPER_LAYERS[config.copper_layer]}.gcode"
+        output_filename = os.path.join(config.user_dir, filename)
+
         Machine.generate_gcode_to_file(
             paths=paths,
-            filename=config.get_laser_gcode_filename(),
+            filename=output_filename,
             base_speed=config.base_speed,
             short_speed=config.short_speed,
             laser_power=config.laser_power,
             round_um=config.round_um,
             min_contour_length=config.min_contour_length,
             max_contour_length=config.max_contour_length)
+
         pend_frame.Destroy()
-        show_msq(self.title, f"Сохранен файл {config.get_laser_gcode_filename()}")
-        return
+        show_msq(self.title, f"Сохранен файл {output_filename}")
 
 
 Laser().register()
