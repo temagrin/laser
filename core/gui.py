@@ -1,6 +1,9 @@
 import wx
+from wx import Size
 
 from core.settings import PluginConfig
+
+GRID_GAP = 8
 
 
 class LaserSettingsDialog(wx.Dialog):
@@ -12,8 +15,26 @@ class LaserSettingsDialog(wx.Dialog):
         panel = wx.Panel(self)
         vbox = wx.BoxSizer(wx.VERTICAL)
 
-        for key, meta in config.FIELDS.items():
-            hbox = wx.BoxSizer(wx.HORIZONTAL)
+        user_dir_key = "user_dir"
+        if user_dir_key in config.FIELDS:
+            meta = config.FIELDS.get(user_dir_key)
+            if meta:
+                hbox = wx.BoxSizer(wx.HORIZONTAL)
+                label = wx.StaticText(panel, label=meta["label"] + ":")
+                text = wx.TextCtrl(panel, value=getattr(config, user_dir_key))
+                btn = wx.Button(panel, label="...", size=Size(GRID_GAP *4,wx.DefaultSize.height))
+                btn.Bind(wx.EVT_BUTTON, lambda evt, c=text: self.on_choose_dir(evt, c))
+                hbox.Add(label, flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=GRID_GAP)
+                hbox.Add(text, flag=wx.EXPAND, proportion=1)
+                hbox.Add(btn)
+                vbox.Add(hbox, flag=wx.EXPAND | wx.ALL, border=GRID_GAP)
+                self.ctrls[user_dir_key] = text
+
+        control_box = wx.FlexGridSizer(cols=2, gap=Size(GRID_GAP, GRID_GAP))
+
+        config_fields = {k: v for k, v in config.FIELDS.items() if k != user_dir_key}
+
+        for key, meta in config_fields.items():
             label = wx.StaticText(panel, label=meta["label"] + ":")
 
             if "choices" in meta:
@@ -24,31 +45,21 @@ class LaserSettingsDialog(wx.Dialog):
             elif meta["type"] == bool:
                 ctrl = wx.CheckBox(panel)
                 ctrl.SetValue(getattr(config, key))
-            elif key == "user_dir":
-                text = wx.TextCtrl(panel, value=getattr(config, key))
-                btn = wx.Button(panel, label="...")
-                btn.Bind(wx.EVT_BUTTON, lambda evt, c=text: self.on_choose_dir(evt, c))
-                hbox.Add(label, flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
-                hbox.Add(text, proportion=1, flag=wx.EXPAND)
-                hbox.Add(btn, flag=wx.LEFT, border=5)
-                vbox.Add(hbox, flag=wx.EXPAND | wx.ALL, border=5)
-                self.ctrls[key] = text
-                continue
+
             else:
                 ctrl = wx.TextCtrl(panel, value=str(getattr(config, key)))
-
-            hbox.Add(label, flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=8)
-            hbox.Add(ctrl, proportion=1, flag=wx.EXPAND)
-            vbox.Add(hbox, flag=wx.EXPAND | wx.ALL, border=5)
-
+            control_box.Add(label, flag=wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+            control_box.Add(ctrl, flag=wx.EXPAND)
             self.ctrls[key] = ctrl
+
+        vbox.Add(control_box, flag=wx.EXPAND | wx.ALL, border=GRID_GAP)
 
         # Кнопки
         hbox_btns = wx.BoxSizer(wx.HORIZONTAL)
         ok_btn = wx.Button(panel, wx.ID_OK, "Генерировать")
         cancel_btn = wx.Button(panel, wx.ID_CANCEL, "Выйти")
-        hbox_btns.Add(ok_btn, flag=wx.ALL, border=5)
-        hbox_btns.Add(cancel_btn, flag=wx.ALL, border=5)
+        hbox_btns.Add(ok_btn, flag=wx.ALL, border=GRID_GAP)
+        hbox_btns.Add(cancel_btn, flag=wx.ALL, border=GRID_GAP)
         vbox.Add(hbox_btns, flag=wx.ALIGN_CENTER | wx.TOP | wx.BOTTOM, border=10)
 
         panel.SetSizer(vbox)
