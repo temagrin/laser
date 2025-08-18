@@ -62,8 +62,9 @@ class Laser(pcbnew.ActionPlugin):
             shapely_multy = GeometryTool.mirror_geometry(shapely_multy, 'y')
 
         polygons = GeometryTool.extract_sorted_polygons(shapely_multy)
+        plt = Plotter(self.title)
         if config.show_preview:
-            Plotter.render_preview(polygons)
+            plt.render_preview(polygons)
 
         paths = []
         for figure in polygons:
@@ -76,7 +77,7 @@ class Laser(pcbnew.ActionPlugin):
                 paths.append(figure_paths)
 
         if config.show_paths:
-            Plotter.plot_inset_paths(paths)
+            plt.plot_inset_paths(paths)
 
         filename = f"laser_{config.COPPER_LAYERS[config.copper_layer]}.gcode"
         output_filename = os.path.join(config.user_dir, filename)
@@ -93,6 +94,6 @@ class Laser(pcbnew.ActionPlugin):
 
         gui.destroy_spinner()
         gui.show_msq(f"Сохранен файл {output_filename}")
-
+        plt.destroy_all()
 
 Laser().register()
