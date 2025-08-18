@@ -22,7 +22,7 @@ class LaserSettingsDialog(wx.Dialog):
                 hbox = wx.BoxSizer(wx.HORIZONTAL)
                 label = wx.StaticText(panel, label=meta["label"] + ":")
                 text = wx.TextCtrl(panel, value=getattr(config, user_dir_key))
-                btn = wx.Button(panel, label="...", size=Size(GRID_GAP *4,wx.DefaultSize.height))
+                btn = wx.Button(panel, label="...", size=Size(GRID_GAP * 4, wx.DefaultSize.height))
                 btn.Bind(wx.EVT_BUTTON, lambda evt, c=text: self.on_choose_dir(evt, c))
                 hbox.Add(label, flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=GRID_GAP)
                 hbox.Add(text, flag=wx.EXPAND, proportion=1)
