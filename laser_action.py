@@ -32,12 +32,14 @@ class Laser(pcbnew.ActionPlugin):
         board = pcbnew.GetBoard()
         if not board:
             gui.show_msq("Ошибка: нет открытой платы")
+            gui.destroy_spinner()
             return
 
         origin_x, origin_y = PCB.get_board_origin_from_edges(board)
         if origin_x == 0 or origin_y == 0:
             gui.show_msq("Не задана область обрезки платы. Расположите на слое Edge.cut прямоугольник - "
                          "границы платы")
+            gui.destroy_spinner()
             return
 
         poly_coords, hole_coords = PCB.get_cu_geometry(
@@ -49,6 +51,7 @@ class Laser(pcbnew.ActionPlugin):
 
         if not poly_coords:
             gui.show_msq("На выбранном слое нет медных объектов")
+            gui.destroy_spinner()
             return
 
         shapely_multy = GeometryTool.get_shapely_complete_multy_poly(poly_coords, hole_coords)

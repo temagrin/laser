@@ -17,7 +17,7 @@ class PCB:
         """
         points = cls.get_edge_cuts_points(board)
         if not points:
-            raise ValueError("Не найдены точки на Edge.Cuts")
+            return 0, 0
 
         # Минимальные координаты — нижний левый угол
         min_x = min(p[0] for p in points)
