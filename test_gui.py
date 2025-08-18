@@ -1,11 +1,10 @@
 import wx
-
-from core.gui import get_gui_config
-
+from core.gui import GUI
 
 class MyApp(wx.App):
     def OnInit(self):
-        print(get_gui_config("Laser processor"))
+        gui = GUI("Laser processor")
+        print(gui.get_gui_config())
         return True
 
 

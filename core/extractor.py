@@ -19,6 +19,7 @@ class PCB:
         if not points:
             return 0, 0
 
+        # TODO надо пройти момент
         # Минимальные координаты — нижний левый угол
         min_x = min(p[0] for p in points)
         min_y = min(p[1] for p in points)
