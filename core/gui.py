@@ -92,7 +92,7 @@ class PenFrame(wx.Dialog):
     def __init__(self, title):
         super().__init__(None, title=title)
         panel = wx.Panel(self)
-        text = wx.StaticText(panel, label="Работаю...")
+        text = wx.StaticText(panel, label="Processing...")
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(text, 0, wx.ALL | wx.CENTER, 10)
         panel.SetSizer(sizer)
@@ -101,21 +101,31 @@ class PenFrame(wx.Dialog):
         wx.Yield()
 
 
-def show_msq(title, message):
-    dlg = wx.MessageDialog(None, message, title, wx.OK | wx.ICON_INFORMATION)
-    dlg.ShowModal()
-    dlg.Destroy()
+class GUI:
+    def __init__(self, title="Laser CAM"):
+        self.spinner = None
+        self.title = title
 
+    def show_spinner(self):
+        self.spinner = PenFrame(self.title)
 
-def get_gui_config(title):
-    config = PluginConfig()
-    config.load_config()
+    def destroy_spinner(self):
+        self.spinner.Destroy()
 
-    dlg = LaserSettingsDialog(config, title)
-    if dlg.ShowModal() == wx.ID_OK:
-        dlg.apply_changes()
-        config.save_config()
+    def show_msq(self, message):
+        dlg = wx.MessageDialog(None, message, self.title, wx.OK | wx.ICON_INFORMATION)
+        dlg.ShowModal()
         dlg.Destroy()
-        return config
-    dlg.Destroy()
-    return None
+
+    def get_gui_config(self):
+        config = PluginConfig()
+        config.load_config()
+
+        dlg = LaserSettingsDialog(config, self.title)
+        if dlg.ShowModal() == wx.ID_OK:
+            dlg.apply_changes()
+            config.save_config()
+            dlg.Destroy()
+            return config
+        dlg.Destroy()
+        return None

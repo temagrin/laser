@@ -3,16 +3,15 @@ import numpy as np
 
 
 def get_path_length(contour_points):
+    """Вычисляет длину замкнутого пути"""
     length = 0.0
     prev_x, prev_y = contour_points[0]
-    first_x, first_y = contour_points[0]
     for x_nm, y_nm in contour_points[1:]:
         x = x_nm
         y = y_nm
         length += math.hypot(x - prev_x, y - prev_y)
         prev_x, prev_y = x, y
 
-    length += math.hypot(prev_x - first_x, prev_y - first_y)
     return length
 
 
@@ -43,6 +42,8 @@ def sort_paths_minimize_transitions(paths):
     Возвращает — список отсортированных и ориентированных путей.
     """
     n = len(paths)
+    if n < 2:
+        return
     used = [False] * n
     sorted_paths = []
 
@@ -82,6 +83,8 @@ def sort_paths_minimize_transitions(paths):
 def sort_paths(paths):
     """Простая сортировка по концам-началам"""
     n = len(paths)
+    if n < 2:
+        return
     used = [False] * n
     sorted_indices = []
 

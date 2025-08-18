@@ -3,7 +3,9 @@ import json
 
 
 class PluginConfig:
-    COPPER_LAYERS = {0: "F.Cu", 2: "B.Cu"}
+    COPPER_LAYERS = {0: "F_Cu", 2: "B_Cu"}
+    SORT_TYPES = {0: "NNa", 1: "K-opt"}
+
     FIELDS = {
         "user_dir":             {"default": "/home/user", "type": str, "label": "Рабочая директория"},
         "copper_layer":         {"default": 2, "type": int, "label": "Слой меди", "choices": COPPER_LAYERS},
@@ -13,8 +15,10 @@ class PluginConfig:
         "short_speed":          {"default": 750, "type": int, "label": "Скорость коротких участков (F)"},
         "arc_segments":         {"default": 32, "type": int, "label": "Сегментация окружностей (ед)"},
         "round_um":             {"default": 2, "type": int, "label": "Округление координат (мкм)"},
+        "min_length_um":        {"default": 400, "type": int, "label": "Минимальная длина пути (мкм)"},
         "max_contour_length":   {"default": 15, "type": int, "label": "Макс. длина контура (мм)"},
         "min_contour_length":   {"default": 1, "type": int, "label": "Мин. длина контура (мм)"},
+        "sort_type":            {"default": 1, "type": int, "label": "Тип сортировки путей", "choices": SORT_TYPES},
         "show_preview":         {"default": False, "type": bool, "label": "Предпросмотр платы"},
         "show_paths":           {"default": False, "type": bool, "label": "Показать пути"},
         "tent_th":              {"default": False, "type": bool, "label": "Тентовать TH"},
@@ -30,6 +34,8 @@ class PluginConfig:
         self.tent_via = False
         self.show_preview = False
         self.show_paths = False
+        self.sort_type = 1
+        self.min_length_um = 400
         self.copper_layer = 0
         self.laser_beam_wide = 25000
         self.base_speed = 900

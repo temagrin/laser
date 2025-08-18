@@ -1,11 +1,10 @@
 import os
 import pcbnew
 
-from core.gui import get_gui_config, show_msq, PenFrame
-from core.path_tools import ShapelyPathGenerator
-from core.geometry import PCB
+from core.gui import GUI
+from core.extractor import PCB
 from core.machine import Machine
-from core.polygons import GeometryTool
+from core.geometry import GeometryTool
 from core.previewer import Plotter
 
 
@@ -22,21 +21,23 @@ class Laser(pcbnew.ActionPlugin):
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icons/icon.svg")
 
     def Run(self):
-        config = get_gui_config(self.title)
+        gui = GUI(self.title)
+
+        config = gui.get_gui_config()
         if not config:
             return
 
-        pend_frame = PenFrame(self.title)
+        gui.show_spinner()
 
         board = pcbnew.GetBoard()
         if not board:
-            show_msq(self.title, "Ошибка: нет открытой платы")
+            gui.show_msq("Ошибка: нет открытой платы")
             return
 
         origin_x, origin_y = PCB.get_board_origin_from_edges(board)
         if origin_x == 0 or origin_y == 0:
-            show_msq(self.title, "Не задана область обрезки платы. Расположите на слое Edge.cut прямоугольник - "
-                                 "границы платы")
+            gui.show_msq("Не задана область обрезки платы. Расположите на слое Edge.cut прямоугольник - "
+                         "границы платы")
             return
 
         poly_coords, hole_coords = PCB.get_cu_geometry(
@@ -47,7 +48,7 @@ class Laser(pcbnew.ActionPlugin):
             arc_segments=config.arc_segments)
 
         if not poly_coords:
-            show_msq(self.title, "На выбранном слое нет медных объектов")
+            gui.show_msq("На выбранном слое нет медных объектов")
             return
 
         shapely_multy = GeometryTool.get_shapely_complete_multy_poly(poly_coords, hole_coords)
@@ -63,7 +64,13 @@ class Laser(pcbnew.ActionPlugin):
 
         paths = []
         for figure in polygons:
-            paths.append(ShapelyPathGenerator.generate_inset_paths(figure, config.laser_beam_wide))
+            figure_paths = GeometryTool.generate_inset_paths(
+                current_geom=figure,
+                step=config.laser_beam_wide,
+                min_length_um=config.min_length_um,
+                sort_type=config.sort_type)
+            if figure_paths:
+                paths.append(figure_paths)
 
         if config.show_paths:
             Plotter.plot_inset_paths(paths)
@@ -81,8 +88,8 @@ class Laser(pcbnew.ActionPlugin):
             min_contour_length=config.min_contour_length,
             max_contour_length=config.max_contour_length)
 
-        pend_frame.Destroy()
-        show_msq(self.title, f"Сохранен файл {output_filename}")
+        gui.destroy_spinner()
+        gui.show_msq(f"Сохранен файл {output_filename}")
 
 
 Laser().register()
