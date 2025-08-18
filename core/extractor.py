@@ -153,9 +153,7 @@ class PCB:
         else:
             poly_set = pcbnew.SHAPE_POLY_SET()
             clearance = 0
-            max_error = 10000
-            error_type = pcbnew.ERROR_INSIDE
-            draw.TransformShapeToPolygon(poly_set, lay, clearance, max_error, error_type)
+            draw.TransformShapeToPolygon(poly_set, lay, clearance, MAX_ERROR, ERROR_INSIDE)
             return poly_set
 
     @staticmethod
@@ -196,7 +194,6 @@ class PCB:
 
         outline.SetClosed(True)
         poly_set.AddOutline(outline)
-
         return poly_set
 
     @staticmethod
