@@ -1,6 +1,7 @@
 import wx
 from core.gui import GUI
 
+
 class MyApp(wx.App):
     def OnInit(self):
         gui = GUI("Laser processor")
@@ -11,4 +12,3 @@ class MyApp(wx.App):
 if __name__ == '__main__':
     app = MyApp()
     app.MainLoop()
-
