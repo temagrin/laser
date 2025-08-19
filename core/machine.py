@@ -2,6 +2,17 @@ from core.tools import get_path_length
 
 
 class Machine:
+    @staticmethod
+    def get_speed(length, base_speed, short_speed, min_contour_length, max_contour_length):
+        if length <= min_contour_length:
+            speed = short_speed
+        elif length >= max_contour_length:
+            speed = base_speed
+        else:
+            ratio = (length - min_contour_length) / (max_contour_length - min_contour_length)
+            speed = base_speed - ratio * (base_speed - short_speed)
+        return int(speed)
+
     @classmethod
     def generate_gcode_to_file(
             cls,
@@ -26,13 +37,8 @@ class Machine:
 
                     length = get_path_length(contour_points)
                     length *= nm_to_mm
-                    if length <= min_contour_length:
-                        speed = short_speed
-                    elif length >= max_contour_length:
-                        speed = base_speed
-                    else:
-                        ratio = (length - min_contour_length) / (max_contour_length - min_contour_length)
-                        speed = base_speed - ratio * (base_speed - short_speed)
+
+                    speed = cls.get_speed(length, base_speed, short_speed, min_contour_length, max_contour_length)
 
                     # --- генерация G-кода ---
                     start_x = round(contour_points[0][0] * nm_to_mm / scale) * scale
@@ -50,11 +56,8 @@ class Machine:
                             if new_command != last_command:
                                 f.write(f"{new_command}\n")
                                 last_command = f"{new_command}"
-
-                    # замыкание контура если небыло замкнуто из самого контура
                     new_command = f"X{start_x:.3f}Y{start_y:.3f}"
                     if new_command != last_command:
                         f.write(f"{new_command}\n")
-
             f.write(f"M5\nG0X0Y0\nM30\n")
         return

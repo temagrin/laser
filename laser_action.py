@@ -5,7 +5,6 @@ from core.gui import GUI
 from core.extractor import PCB
 from core.machine import Machine
 from core.geometry import GeometryTool
-from core.previewer import Plotter
 
 
 class Laser(pcbnew.ActionPlugin):
@@ -62,6 +61,12 @@ class Laser(pcbnew.ActionPlugin):
             shapely_multy = GeometryTool.mirror_geometry(shapely_multy, 'y')
 
         polygons = GeometryTool.extract_sorted_polygons(shapely_multy)
+
+        if config.view_type:
+            from core.previewer_mpl import Plotter
+        else:
+            from core.previewer_wx import Plotter
+
         plt = Plotter(self.title)
         if config.show_preview:
             plt.render_preview(polygons)
@@ -95,5 +100,3 @@ class Laser(pcbnew.ActionPlugin):
         gui.destroy_spinner()
         gui.show_msq(f"Сохранен файл {output_filename}")
         plt.destroy_all()
-
-Laser().register()

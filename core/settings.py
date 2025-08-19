@@ -5,6 +5,7 @@ import json
 class PluginConfig:
     COPPER_LAYERS = {0: "F_Cu", 2: "B_Cu"}
     SORT_TYPES = {0: "NNa", 1: "K-opt"}
+    VIEW_TYPES = {0: "WX", 1: "MPL"}
 
     FIELDS = {
         "user_dir":             {"default": "/home/user", "type": str, "label": "Рабочая директория"},
@@ -19,6 +20,7 @@ class PluginConfig:
         "max_contour_length":   {"default": 15, "type": int, "label": "Макс. длина контура (мм)"},
         "min_contour_length":   {"default": 1, "type": int, "label": "Мин. длина контура (мм)"},
         "sort_type":            {"default": 1, "type": int, "label": "Тип сортировки путей", "choices": SORT_TYPES},
+        "view_type":            {"default": 0, "type": int, "label": "Класс просмотра", "choices": VIEW_TYPES},
         "show_preview":         {"default": False, "type": bool, "label": "Предпросмотр платы"},
         "show_paths":           {"default": False, "type": bool, "label": "Показать пути"},
         "tent_th":              {"default": False, "type": bool, "label": "Тентовать TH"},
@@ -42,6 +44,7 @@ class PluginConfig:
         self.short_speed = 750
         self.laser_power = 255
         self.round_um = 2
+        self.view_type = 0
         self.user_dir = "/home/user"
         self._config_file_name = os.path.join(os.path.dirname(__file__), "config.json")
 
