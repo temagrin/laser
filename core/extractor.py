@@ -3,7 +3,7 @@ import pcbnew
 from pcbnew import ERROR_INSIDE
 
 MAX_ERROR = 10000
-
+KERN_HOLE_NM = 800000
 
 class PCB:
     @classmethod
@@ -224,7 +224,7 @@ class PCB:
         return polygons
 
     @classmethod
-    def get_cu_geometry(cls, board, copper_layer, tent_via=False, tent_th=False, arc_segments=32):
+    def get_cu_geometry(cls, board, copper_layer, tent_via=False, tent_th=False, only_pad=False, punch_holes=False, arc_segments=32):
         poly_sets = []
         hole_sets = []
         clearance = 0
@@ -247,9 +247,13 @@ class PCB:
                 if pad.HasDrilledHole():
                     drill_x = pad.GetDrillSizeX()
                     drill_y = pad.GetDrillSizeY()
+
                     pos = pad.GetPosition()
                     orientation = pad.GetOrientation().AsDegrees()
                     if drill_x > 0 and drill_y > 0 and not tent_th:
+                        if punch_holes:
+                            drill_x = KERN_HOLE_NM
+                            drill_y = KERN_HOLE_NM
                         hole_poly = cls.create_slot_from_object(pos, drill_x, drill_y, orientation, arc_segments)
                         hole_sets.append(hole_poly)
 
@@ -264,10 +268,12 @@ class PCB:
                 orientation = 0
                 pos = track.GetPosition()
                 if drill > 0 and not tent_via:
+                    if punch_holes:
+                        drill = KERN_HOLE_NM
                     hole_poly = cls.create_slot_from_object(pos, drill, drill, orientation, arc_segments)
                     hole_sets.append(hole_poly)
 
-            elif cls_track == "PCB_TRACK":
+            elif cls_track == "PCB_TRACK" and not only_pad:
                 if track.GetLayer() == copper_layer:
                     poly_set = cls.track_to_poly_set(track, copper_layer)
                     if poly_set and not poly_set.IsEmpty():

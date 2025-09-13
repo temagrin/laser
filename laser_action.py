@@ -46,6 +46,8 @@ class Laser(pcbnew.ActionPlugin):
             copper_layer=config.copper_layer,
             tent_via=config.tent_via,
             tent_th=config.tent_th,
+            only_pad=config.only_pad,
+            punch_holes=config.punch_holes,
             arc_segments=config.arc_segments)
 
         if not poly_coords:

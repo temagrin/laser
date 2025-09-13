@@ -27,37 +27,42 @@ class Machine:
     ):
         nm_to_mm = 1e-6
         scale = 1e-3 * round_um
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(f"G21 G17 G90\nG0Z0\nM4\n")
+
+        def to_mm(value):
+            return round(value * nm_to_mm / scale) * scale
+
+        def write_command(f_handle, command, last_cmd):
+            if command != last_cmd:
+                f_handle.write(command + "\n")
+                return command
+            return last_cmd
+
+        def cmd_iterator():
             for inset_levels in paths:
                 for contour_points in inset_levels:
-                    last_command = ""
                     if len(contour_points) < 2:
                         continue
 
-                    length = get_path_length(contour_points)
-                    length *= nm_to_mm
-
+                    length = get_path_length(contour_points) * nm_to_mm
                     speed = cls.get_speed(length, base_speed, short_speed, min_contour_length, max_contour_length)
 
-                    # --- генерация G-кода ---
-                    start_x = round(contour_points[0][0] * nm_to_mm / scale) * scale
-                    start_y = round(contour_points[0][1] * nm_to_mm / scale) * scale
-                    f.write(f"G0X{start_x:.3f}Y{start_y:.3f}S0\n")
-                    first = True
+                    start_x = to_mm(contour_points[0][0])
+                    start_y = to_mm(contour_points[0][1])
+                    yield f"G0X{start_x:.3f}Y{start_y:.3f}S0"
+                    first_point = True
                     for x_nm, y_nm in contour_points[1:]:
-                        x_mm = round(x_nm * nm_to_mm / scale) * scale
-                        y_mm = round(y_nm * nm_to_mm / scale) * scale
-                        if first:
-                            f.write(f"G1X{x_mm:.3f}Y{y_mm:.3f}F{speed:.1f}S{laser_power}\n")
-                            first = False
+                        x_mm = to_mm(x_nm)
+                        y_mm = to_mm(y_nm)
+                        if first_point:
+                            first_point = False
+                            yield f"G1X{x_mm:.3f}Y{y_mm:.3f}F{speed}S{laser_power}"
                         else:
-                            new_command = f"X{x_mm:.3f}Y{y_mm:.3f}"
-                            if new_command != last_command:
-                                f.write(f"{new_command}\n")
-                                last_command = f"{new_command}"
-                    new_command = f"X{start_x:.3f}Y{start_y:.3f}"
-                    if new_command != last_command:
-                        f.write(f"{new_command}\n")
-            f.write(f"M5\nG0X0Y0\nM30\n")
-        return
+                            yield f"X{x_mm:.3f}Y{y_mm:.3f}"
+                    if not first_point:
+                        yield f"G1X{start_x:.3f}Y{start_y:.3f}"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("G21 G17 G90\nG0Z0\nM4\n")
+            last_command = ""
+            for cmd in cmd_iterator():
+                last_command = write_command(f, cmd, last_command)
+            f.write("M5\nG0X0Y0\nM30\n")

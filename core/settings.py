@@ -25,6 +25,9 @@ class PluginConfig:
         "show_paths":           {"default": False, "type": bool, "label": "Показать пути"},
         "tent_th":              {"default": False, "type": bool, "label": "Тентовать TH"},
         "tent_via":             {"default": False, "type": bool, "label": "Тентовать VIA"},
+        "punch_holes":          {"default": False, "type": bool, "label": "Кернить отверстия"},
+        "only_pad":             {"default": False, "type": bool, "label": "Только пады"},
+
     }
 
     def __init__(self):
@@ -36,6 +39,8 @@ class PluginConfig:
         self.tent_via = False
         self.show_preview = False
         self.show_paths = False
+        self.only_pad = False
+        self.punch_holes = False
         self.sort_type = 1
         self.min_length_um = 400
         self.copper_layer = 0
