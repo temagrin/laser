@@ -284,11 +284,11 @@ class PCB:
                 if poly_set and not poly_set.IsEmpty():
                     poly_sets.append(poly_set)
 
-        for zone in board.Zones():
-            if zone.GetLayer() == copper_layer:
-                poly_set = cls.zone_to_poly_set(zone)
-                if poly_set and not poly_set.IsEmpty():
-                    poly_sets.append(poly_set)
+        # for zone in board.Zones():
+        #     if zone.GetLayer() == copper_layer:
+        #         poly_set = cls.zone_to_poly_set(zone)
+        #         if poly_set and not poly_set.IsEmpty():
+        #             poly_sets.append(poly_set)
 
         poly_sets_multy = cls.union_poly_sets(poly_sets)
         holy_sets_multy = cls.union_poly_sets(hole_sets)
