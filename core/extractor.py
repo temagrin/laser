@@ -157,7 +157,7 @@ class PCB:
             return poly_set
 
     @staticmethod
-    def create_slot_from_object(center, drill_x, drill_y, orientation_degrees, segments):
+    def create_slot_from_object(center, drill_x, drill_y, orientation_degrees, segments, punch_only=False):
         angle_rad = math.radians(orientation_degrees)
 
         length = max(drill_x, drill_y)  # общая длина прорези (включая торцы)
@@ -169,6 +169,9 @@ class PCB:
         if half_length < 0:
             # Предотвращаем отрицательный размер (если ширина больше длины)
             half_length = 0
+
+        if punch_only:
+            radius = KERN_HOLE_NM // 2
 
         poly_set = pcbnew.SHAPE_POLY_SET()
         outline = pcbnew.SHAPE_LINE_CHAIN()
@@ -251,10 +254,8 @@ class PCB:
                     pos = pad.GetPosition()
                     orientation = pad.GetOrientation().AsDegrees()
                     if drill_x > 0 and drill_y > 0 and not tent_th:
-                        if punch_holes:
-                            drill_x = KERN_HOLE_NM
-                            drill_y = KERN_HOLE_NM
-                        hole_poly = cls.create_slot_from_object(pos, drill_x, drill_y, orientation, arc_segments)
+                        hole_poly = cls.create_slot_from_object(pos, drill_x, drill_y, orientation, arc_segments,
+                                                                punch_holes)
                         hole_sets.append(hole_poly)
 
         for track in board.GetTracks():
@@ -268,9 +269,7 @@ class PCB:
                 orientation = 0
                 pos = track.GetPosition()
                 if drill > 0 and not tent_via:
-                    if punch_holes:
-                        drill = KERN_HOLE_NM
-                    hole_poly = cls.create_slot_from_object(pos, drill, drill, orientation, arc_segments)
+                    hole_poly = cls.create_slot_from_object(pos, drill, drill, orientation, arc_segments, punch_holes)
                     hole_sets.append(hole_poly)
 
             elif cls_track == "PCB_TRACK" and not only_pad:
